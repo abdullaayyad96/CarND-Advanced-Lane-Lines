@@ -3,19 +3,22 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import cv2
 import os
+from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'image'
+mode = 'video'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
 #videos directory
-vid_dir = ''
+video_dir = 'project_video.mp4'
 
 #calibration settings
 calibrate_b = True #boolean to determine whether to perform calibration
 calibrate_img_dir = 'camera_cal/' #directory of calibration files1
 chess_size = (9, 6) #size of chessboard in calibration files
+mtx = np.ndarray(shape=(3,3)) #setting camera matrix as global
+dist = np.ndarray(shape=(1,5))  #setting distortion coefficients as global
 
 #undistortion settings 
 undistort_b = True
@@ -29,7 +32,7 @@ destination_points = np.float32([ [250, 0], [1030, 0], [250, 720], [1030, 720] ]
 sobel_thresholding = True
 color_thresholding = True
 sobel_thresh = (30, 255)
-color_thresh = (130, 255)
+color_thresh = (180, 255)
 
 def calibrate(directory, size):
     #obtaining files in directory
@@ -57,9 +60,9 @@ def calibrate(directory, size):
                 obj_points.append(objp)
 
     #performing calibration
-    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(obj_points, img_points, gray.shape[::-1], None, None)
+    ret, cam_mtx, dist_coef, rvecs, tvecs = cv2.calibrateCamera(obj_points, img_points, gray.shape[::-1], None, None)
 
-    return mtx, dist
+    return cam_mtx, dist_coef
 
 
 def undistort(img, camera_mtx, dist_coef):
@@ -195,49 +198,76 @@ def plot(binary_warped, left_fit, right_fit):
 
     pts = np.concatenate((pts_l, np.flipud(pts_r)))
     cv2.fillPoly(out_img,  [pts], (0,0,255))
-      
 
     return(out_img)
 
 
+def process_img(input_img):
+    #perform undistortion
+    input_img = undistort(input_img, mtx, dist)
+
+    #perform color and sobel thresholding
+    thresh_image = threshold(input_img, color_thresh, sobel_thresh)
+    
+    #apply perspective transform
+    per_img = perspective_transform(thresh_image, source_points, destination_points)
+
+    #finding and fitting lane lines
+    [left_fit, right_fit] = find_lines(per_img)
+
+    #marking lane lines
+    wraped_marked_img = plot(per_img, left_fit, right_fit)
+
+    #applying inverse perspective transform
+    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+
+    #Adding marked lines to original images
+    return cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+
 
 def main():
+    #global calibration coefficients
+    global mtx
+    global dist
+
+    #perform calibration
     if calibrate:
-        [mtx, dist] = calibrate(calibrate_img_dir, chess_size)
-    
+        [mtx, dist] = calibrate(calibrate_img_dir, chess_size)\
+            
+    #image mode
     if (mode == 'image'):
+
+        #read images in directory
         images = os.listdir(img_dir)
-        
         for image in images:
             if (image[-3:]!="jpg"):
                 images.remove(image)
         n_images = len(images)
 
+        #iterating images in directory
         for i in range(n_images):
+            #read image
+            input_img = mpimg.imread(img_dir + images[i])
 
-            test_img = mpimg.imread(img_dir + images[i])
-
-            test_img = undistort(test_img, mtx, dist)
-
-            thresh_image = threshold(test_img, color_thresh, sobel_thresh)
-
-            per_img = perspective_transform(thresh_image, source_points, destination_points)
-
-            [left_fit, right_fit] = find_lines(per_img)
-            wraped_marked_img = plot(per_img, left_fit, right_fit)
-
-            marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
-
-            final_img = cv2.addWeighted(test_img, 1, marked_img, 0.5, 0)
-
+            #obtain marked image
+            final_img = process_img(input_img)
+            
+            #save images
             mpimg.imsave((img_out_dir+images[i]), final_img)
 
+            #showing images
             plt.subplot(n_images,2,(2*i+1))
-            plt.imshow(test_img)
+            plt.imshow(input_img)
             plt.subplot(n_images,2,(2*i+2))
             plt.imshow(final_img)
 
         plt.show()
+
+    elif (mode == 'video'):
+        new_clip_output = 'output_project_video.mp4'
+        input_clip = VideoFileClip(video_dir)
+        output_clip = input_clip.fl_image(process_img)
+        output_clip.write_videofile(new_clip_output, audio=False)
 
 
 main()
