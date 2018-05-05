@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import cv2
 import os
 import sys
-import Line
+from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
@@ -194,43 +194,18 @@ def find_lines(binary_warped, Line):
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds] 
 
-        # Fit a second order polynomial to each
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
+        #append to line object
+        Line.add_points(lefty, leftx, righty, rightx)
 
     #elif (slide_mode == 'convolution'):
-
-
-    return left_fit, right_fit
-
-def dim_convert(input_image, Line):
-    #defining lane width in meters
-    lane_width = 3.7
-
-    #defining evaluation point for y
-    y_eval = input_image.shape[0]
-
-    left_lanex = left_poly_fit[0]*y_eval**2 + left_poly_fit[1]*y_eval + left_poly_fit[2]
-    right_lanex = right_poly_fit[0]*y_eval**2 + right_poly_fit[1]*y_eval + right_poly_fit[2]
-
-    x_pix_width = right_lanex - left_lanex
-
-    # Define conversions in x and y from pixels space to meters
-    xm_per_pix = lane_width/x_pix_width # meters per pixel in x dimension
-    ym_per_pix = 3/110 # meters per pixel in y dimension, manually calculated
-
-    return ym_per_pix, xm_per_pix
-
-def find_curveture(input_image, poly_fit, ym_per_pix, xm_per_pix):
-    
-
+ 
 
 def plot(binary_warped, Line):
     #plots and annotates images
 
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0], dtype=np.int)
-    left_fitx = np.array(left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2], np.int)
-    right_fitx = np.array(right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2], np.int)
+    left_fitx = np.array(Line.avg_left_poly[0]*ploty**2 + Line.avg_left_poly[1]*ploty + Line.avg_left_poly[2], np.int)
+    right_fitx = np.array(Line.avg_right_poly[0]*ploty**2 + Line.avg_right_poly[1]*ploty + Line.avg_right_poly[2], np.int)
 
     out_layer = np.zeros_like(binary_warped)
     out_img = np.uint8(np.dstack(( out_layer, out_layer, out_layer)))
@@ -257,28 +232,18 @@ def process_img(input_img):
     #apply perspective transform
     per_img = perspective_transform(thresh_image, source_points, destination_points)
 
+    #set parameters for myLine object
+    myLine.dim = input_img.shape
+    myLine.xm_per_pix = 3.7/780 # meters per pixel in x dimension
+    myLine.ym_per_pix = 3/110 # meters per pixel in y dimension
+
     #finding and fitting lane lines
-    [left_fit, right_fit] = find_lines(per_img)
+    find_lines(per_img, myLine)
     
-    #finding curvetures of both lanes
-    [ym_per_pix, xm_per_pix] = dim_convert(per_img, left_fit, right_fit)
-    right_curv = find_curveture(per_img, right_fit, ym_per_pix, xm_per_pix)
-    left_curv = find_curveture(per_img, left_fit, ym_per_pix, xm_per_pix)
-        
-    if ((right_curv > 4000) & (abs(left_curv) > 4000)):
-        #straigh line case
-        avg_curv = 0
-        curv_error = 0
-    else:
-        avg_curv = (right_curv + left_curv) / 2
-        curv_error = abs((right_curv - left_curv) / ((right_curv + left_curv)/2))
-
-    if (curv_error < 0.65):
-        #annotate image
-        avg_curv = float("{0:.2f}".format(avg_curv / 1000)) #converting from m to km
-
+    
+    if (myLine.detected):
         #marking lane lines
-        wraped_marked_img = plot(per_img, left_fit, right_fit)
+        wraped_marked_img = plot(per_img, myLine)
 
         #applying inverse perspective transform
         marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
@@ -287,7 +252,7 @@ def process_img(input_img):
         added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
         #annotate image
-        annotate_img = cv2.putText(added_img,"Line curveture: {} km".format(avg_curv), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+        annotate_img = cv2.putText(added_img,"Line curveture: {} km".format(myLine.radius_of_curvature), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
     else:
         annotate_img = np.copy(input_img)
