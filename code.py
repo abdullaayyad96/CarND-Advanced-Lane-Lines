@@ -119,7 +119,7 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobelx_
     return combined_binary, color_binary
 
 
-def find_lines(binary_warped):
+def find_lines(binary_warped, Line):
     #Finding the lines by utilizing a sliding window method and returing fitted polynomials
 
     # Take a histogram of the bottom half of the image
@@ -203,7 +203,7 @@ def find_lines(binary_warped):
 
     return left_fit, right_fit
 
-def dim_convert(input_image, left_poly_fit, right_poly_fit):
+def dim_convert(input_image, Line):
     #defining lane width in meters
     lane_width = 3.7
 
@@ -222,17 +222,10 @@ def dim_convert(input_image, left_poly_fit, right_poly_fit):
     return ym_per_pix, xm_per_pix
 
 def find_curveture(input_image, poly_fit, ym_per_pix, xm_per_pix):
-    #accepts polynomial fit and pixel to actual dimension conversion parameters and returns curveture on the polynomial in actual dimensions 
-
-    #defining evaluation point for y
-    y_eval = input_image.shape[0]
-    # Calculate the new radii of curvature
-    curv = ((1 + (2*poly_fit[0]*y_eval*ym_per_pix + poly_fit[1])**2)**1.5) / np.absolute(2*poly_fit[0])
-
-    return curv
+    
 
 
-def plot(binary_warped, left_fit, right_fit):
+def plot(binary_warped, Line):
     #plots and annotates images
 
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0], dtype=np.int)
