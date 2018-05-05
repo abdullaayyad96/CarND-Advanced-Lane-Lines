@@ -12,6 +12,8 @@ class Line():
         self.righty = None
         #are the last added values valid
         self.valid_new = False
+        #number of frames since last valid reading 
+        self.last_valid_frame = 0
         #dimensions of the images
         self.dim = None
         #conversion parameters from pixel to actual dimesions
@@ -68,7 +70,7 @@ class Line():
             self.radius_of_curvature = (self.avg_right_curv + self.avg_left_curv) / 2
 
             #for straight lines radius of curvs would be very high
-            if(self.radius_of_curvature > 10000):
+            if(self.radius_of_curvature > 8000):
                 self.radius_of_curvature = np.inf
 
          
@@ -76,6 +78,7 @@ class Line():
 
         self.find_curvature(mode='recent')
         #comparing left and right curvs
+
         if ((self.right_curv > 4000) & (self.right_curv > 4000)):
             #straigh line case
             curv_error = 0
@@ -92,8 +95,11 @@ class Line():
             left_curv_error = abs( (self.avg_left_curv - self.left_curv) / self.avg_left_curv )
 
         #appending new values
-        if ( (curv_error < 0.65) & (right_curv_error < 0.1) & (left_curv_error < 0.1) ):
+        if ( (curv_error < 0.75) & (right_curv_error < 0.1) & (left_curv_error < 0.1) ):
             self.valid_new = True
+            self.last_valid_frame += 1
+            if(self.last_valid_frame>=5):
+                self.detected = False
 
 
     def cvrt_2_act(self):
@@ -121,6 +127,7 @@ class Line():
         if(self.valid_new):
             self.find_avg()
             self.find_curvature(mode='avg')
+            self.last_valid_frame = 0
 
     def add_points(self, lefty, leftx, righty, rightx):
         self.leftx = leftx

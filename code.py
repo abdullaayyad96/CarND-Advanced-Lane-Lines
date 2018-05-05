@@ -8,13 +8,13 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'image'
+mode = 'video'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
 #videos directory
-video_dir = 'challenge_video.mp4'
-video_dir_out = 'output_challenge_video.mp4'
+video_dir = 'project_video.mp4'
+video_dir_out = 'output_project_video.mp4'
 
 #calibration settings
 calibrate_b = True #boolean to determine whether to perform calibration
@@ -34,9 +34,10 @@ destination_points = np.float32([ [250, 0], [1030, 0], [250, 720], [1030, 720] ]
 #thresholding settings
 sobel_thresholding = True
 color_thresholding = True
-sobel_thresh = (30, 255)
-color_s_thresh = (200, 255)
-color_l_thresh = (150, 255)
+sobel_mag_thresh = (30, np.inf)
+sobel_dir_thresh = (0.8, 2.3)
+color_s_thresh = (160, 255)
+color_l_thresh = (160, 255)
 
 #lane finding settins
 #type of sliding window, convolution or regular
@@ -87,35 +88,59 @@ def perspective_transform(img, src, dst):
     return cv2.warpPerspective(img, M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
  
 
-def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobelx_thresh=(50, 255)):
+def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_mag_thresh=(50, 255), sobel_dir_thresh=(0.7, 1.3)):
     img = np.copy(img)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
     # Convert to HLS color space and separate the V channel
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
     h_channel = hls[:,:,0]
     l_channel = hls[:,:,1]
     s_channel = hls[:,:,2]
-    # Sobel x
-    sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0) # Take the derivative in x
-    abs_sobelx = np.absolute(sobelx) # Absolute x derivative to accentuate lines away from horizontal
-    scaled_sobel = np.uint8(255*abs_sobelx/np.max(abs_sobelx))
-    
-    # Threshold x gradient
-    sxbinary = np.zeros_like(scaled_sobel)
-    sxbinary[(scaled_sobel > sobelx_thresh[0]) & (scaled_sobel <= sobelx_thresh[1])] = 1
-    
-    # Threshold color s channel
-    s_binary = np.zeros_like(s_channel)
-    s_binary[(s_channel >= color_s_thresh[0]) & (s_channel <= color_s_thresh[1])] = 1
 
-    #threshold color l channel
-    l_binary = np.zeros_like(s_channel)
-    l_binary[(s_channel >= color_l_thresh[0]) & (s_channel <= color_l_thresh[1])] = 1
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3) #sobel in x direction
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3) #sobel in y direction
+    abs_sobelx = np.absolute(sobelx) # Absolute x derivative to accentuate lines away from horizontal
+    abs_sobely = np.absolute(sobely) # Absolute y derivative to accentuate lines away from vertical
+
+    sobel_dir = np.arctan2(abs_sobelx, abs_sobely)
+    sobel_mag = np.sqrt(np.square(sobelx)+np.square(sobely))
+    scaled_sobel_mag =  np.uint8(255*sobel_mag/np.max(sobel_mag))
+
+    sobel_dir_binary = np.zeros_like(s_channel)
+    sobel_dir_binary[(scaled_sobel_mag >= sobel_dir_thresh[0]) & (scaled_sobel_mag <= sobel_dir_thresh[1])] = 1
+
+    sobel_mag_binary = np.zeros_like(s_channel)
+    sobel_mag_binary[(sobel_dir >= sobel_mag_thresh[0]) & (sobel_dir <= sobel_mag_thresh[1])] = 1
+
+    sobel_binary = np.zeros_like(s_channel)
+    sobel_binary[ (sobel_dir_binary==1) & (sobel_mag_binary==1)] = 1
+        
+    ## Threshold x gradient
+    #sxbinary = np.zeros_like(scaled_sobel)
+    #sxbinary[(scaled_sobel > sobelx_thresh[0]) & (scaled_sobel <= sobelx_thresh[1])] = 1
+    
+    ## Threshold color s channel
+    #s_binary = np.zeros_like(s_channel)
+    #s_binary[(s_channel >= color_s_thresh[0]) & (s_channel <= color_s_thresh[1])] = 1
+
+    ##threshold color l channel
+    #l_binary = np.zeros_like(s_channel)
+    #l_binary[(s_channel >= color_l_thresh[0]) & (s_channel <= color_l_thresh[1])] = 1
+
+    ##combining l and s thresholds
+    #ls_binary = np.zeros_like(l_binary)
+    #ls_binary[ (l_binary == 1) & (s_binary == 1)] = 1
+
+    ls_channel = l_channel + s_channel
+    ls_binary = np.zeros_like(ls_channel)
+    ls_binary[ (ls_channel >= (color_s_thresh[0] + color_l_thresh[0])) & (ls_channel <= (color_s_thresh[1] + color_l_thresh[1]))] = 1
 
     # Stack each channel
     # be beneficial to replace this channel with something else.
-    color_binary = np.uint8(np.dstack(( s_binary, l_binary, sxbinary))) * 255
-    combined_binary = np.zeros_like(sxbinary)
-    combined_binary[ ((s_binary == 1)&(l_binary==1)) | (sxbinary == 1)] = 1
+    color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
+    combined_binary = np.zeros_like(ls_binary)
+    combined_binary[ (ls_binary == 1) | (sobel_binary == 1)] = 1
     return combined_binary, color_binary
 
 
@@ -233,22 +258,22 @@ def process_img(input_img):
     #perform undistortion
     input_img = undistort(input_img, mtx, dist)
 
-    #perform color and sobel thresholding
-    thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_thresh)
-    
     #apply perspective transform
-    per_img = perspective_transform(thresh_image, source_points, destination_points)
+    per_img = perspective_transform(input_img, source_points, destination_points)
+
+    #perform color and sobel thresholding
+    thresh_image, color_binary = threshold(per_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
 
     #set parameters for myLine object
     myLine.set_param(input_img.shape, 3/110, 3.7/780)
 
     #finding and fitting lane lines
-    find_lines(per_img, myLine)
+    find_lines(thresh_image, myLine)
     
     
     if (myLine.detected):
         #marking lane lines
-        wraped_marked_img = plot(per_img, myLine)
+        wraped_marked_img = plot(thresh_image, myLine)
 
         #applying inverse perspective transform
         marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
