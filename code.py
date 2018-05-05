@@ -8,13 +8,13 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
 #videos directory
-video_dir = 'project_video.mp4'
-video_dir_out = 'output_project_video.mp4'
+video_dir = 'challenge_video.mp4'
+video_dir_out = 'output_challenge_video.mp4'
 
 #calibration settings
 calibrate_b = True #boolean to determine whether to perform calibration
@@ -134,9 +134,14 @@ def find_lines(binary_warped, Line):
     if (slide_mode == 'regular'):
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
-        midpoint = np.int(histogram.shape[0]//2)
-        leftx_base = np.argmax(histogram[:midpoint])
-        rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+        if (~Line.detected):
+            midpoint = np.int(histogram.shape[0]//2)
+            leftx_base = np.argmax(histogram[:midpoint])
+            rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+        else:
+            y_eval = binary_warped.shape[0]
+            leftx_base = Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval * Line.avg_left_poly[2]
+            rightx_base = Line.avg_right_poly[0]*y_eval**2 + Line.avg_right_poly[1]*y_eval * Line.avg_right_poly[2]
 
         # Choose the number of sliding windows
         nwindows = 9
@@ -223,6 +228,8 @@ def plot(binary_warped, Line):
 
 
 def process_img(input_img):
+    global myLine 
+
     #perform undistortion
     input_img = undistort(input_img, mtx, dist)
 
@@ -233,9 +240,7 @@ def process_img(input_img):
     per_img = perspective_transform(thresh_image, source_points, destination_points)
 
     #set parameters for myLine object
-    myLine.dim = input_img.shape
-    myLine.xm_per_pix = 3.7/780 # meters per pixel in x dimension
-    myLine.ym_per_pix = 3/110 # meters per pixel in y dimension
+    myLine.set_param(input_img.shape, 3/110, 3.7/780)
 
     #finding and fitting lane lines
     find_lines(per_img, myLine)
@@ -252,7 +257,7 @@ def process_img(input_img):
         added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
         #annotate image
-        annotate_img = cv2.putText(added_img,"Line curveture: {} km".format(myLine.radius_of_curvature), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
     else:
         annotate_img = np.copy(input_img)
@@ -265,6 +270,7 @@ def main():
     #global calibration coefficients
     global mtx
     global dist
+    global myLine
 
     #perform calibration
     if calibrate:
@@ -285,7 +291,6 @@ def main():
             
             #clear myLine for each image
             myLine = Line();
-
             #read image
             input_img = mpimg.imread(img_dir + images[i])
 
