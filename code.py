@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -141,6 +141,7 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
     combined_binary = np.zeros_like(ls_binary)
     combined_binary[ (ls_binary == 1) | (sobel_binary == 1)] = 1
+    print(ls_binary.dtype, combined_binary.dtype)
     return combined_binary, color_binary
 
 
@@ -150,10 +151,10 @@ def find_lines(binary_warped, Line):
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[binary_warped.shape[0]//2:,:], axis=0)
     
-    # Create an output image to draw on and  visualize the result
+    # Create an output image to draw on and visualize the result
     out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
 
-    # Set the width of the windows +/- margin
+    #Set the width of the windows +/- margin
     margin = 100
     
     if (slide_mode == 'regular'):
@@ -288,7 +289,7 @@ def process_img(input_img):
         annotate_img = np.copy(input_img)
 
     #Adding marked lines to original images
-    return annotate_img
+    return thresh_image
 
 
 def main():
@@ -334,7 +335,7 @@ def main():
         plt.show()
 
     elif (mode == 'video'):
-        input_clip = VideoFileClip(video_dir)
+        input_clip = VideoFileClip(video_dir).subclip(20,21)
         output_clip = input_clip.fl_image(process_img)
         output_clip.write_videofile(video_dir_out, audio=False)
 
