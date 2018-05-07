@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'image'
+mode = 'video'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -140,7 +140,6 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     # be beneficial to replace this channel with something else.
     combined_binary = np.zeros_like(sobel_binary)
     combined_binary[(ls_binary==1) | (sobel_binary==1)] = 1
-    print(ls_binary.dtype, combined_binary.dtype)
     color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
     return combined_binary, color_binary
 
