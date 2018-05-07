@@ -170,14 +170,14 @@ def find_lines(binary_warped, Line):
     if (slide_mode == 'regular'):
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
+        midpoint = np.int(histogram.shape[0]//2)
         if (Line.detected==False):
-            midpoint = np.int(histogram.shape[0]//2)
             leftx_base = np.argmax(histogram[masking_x_region:midpoint]) + masking_x_region
             rightx_base = np.argmax(histogram[midpoint:(histogram.shape[0]-masking_x_region)]) + midpoint
         else:
             y_eval = binary_warped.shape[0]
-            leftx_base = int(Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval * Line.avg_left_poly[2])
-            rightx_base = int(Line.avg_right_poly[0]*y_eval**2 + Line.avg_right_poly[1]*y_eval * Line.avg_right_poly[2])
+            leftx_base = int(Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval + Line.avg_left_poly[2])
+            rightx_base = int(Line.avg_right_poly[0]*y_eval**2 + Line.avg_right_poly[1]*y_eval + Line.avg_right_poly[2])
 
         # Current positions to be updated for each window
         leftx_current = leftx_base
@@ -188,6 +188,10 @@ def find_lines(binary_warped, Line):
         # Create empty lists to receive left and right lane pixel indices
         left_lane_inds = []
         right_lane_inds = []
+
+        #momentum that helps the lines keep moving in the same direction
+        right_momentum = 0
+        left_momentum = 0
 
         # Step through the windows one by one
         for window in range(nwindows):
@@ -211,9 +215,20 @@ def find_lines(binary_warped, Line):
             right_lane_inds.append(good_right_inds)
             # If you found > minpix pixels, recenter next window on their mean position
             if len(good_left_inds) > minpix:
-                leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+                left_change = np.int(np.mean(nonzerox[good_left_inds])) - leftx_current
+                if(left_momentum==0):
+                    left_momentum = left_change
+                else:
+                    left_momentum = 0.2*left_momentum + 0.8*left_change
             if len(good_right_inds) > minpix:        
-                rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+                right_change = np.int(np.mean(nonzerox[good_right_inds])) - rightx_current
+                if(right_momentum!=0):
+                    right_momentum = right_change
+                else:
+                    right_momentum = 0.2*right_momentum + 0.8*right_change
+
+            leftx_current = leftx_current + int(left_momentum)        
+            rightx_current = rightx_current + int(right_momentum)
 
         # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
@@ -337,34 +352,34 @@ def process_img(input_img):
     #perform color and sobel thresholding
     thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
   
-    ##apply perspective transform
-    #per_img = perspective_transform(thresh_image, source_points, destination_points)
+    #apply perspective transform
+    per_img = perspective_transform(thresh_image, source_points, destination_points)
     
-    ##set parameters for myline object
-    #myLine.set_param(input_img.shape, 3/110, 3.7/680)
+    #set parameters for myline object
+    myLine.set_param(input_img.shape, 3/110, 3.7/680)
 
-    ##finding and fitting lane lines
-    #line_finding_img = find_lines(per_img, myLine)
+    #finding and fitting lane lines
+    line_finding_img = find_lines(per_img, myLine)
     
     
-    #if (myLine.detected):
-    #    #marking lane lines
-    #    wraped_marked_img = plot(per_img, myLine)
+    if (myLine.detected):
+        #marking lane lines
+        wraped_marked_img = plot(per_img, myLine)
 
-    #    #applying inverse perspective transform
-    #    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+        #applying inverse perspective transform
+        marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
 
-    #    #adding marked image to original image
-    #    added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+        #adding marked image to original image
+        added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
-    #    #annotate image
-    #    annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+        #annotate image
+        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
-    #else:
-    #    annotate_img = np.copy(input_img)
+    else:
+        annotate_img = np.copy(input_img)
 
     #Adding marked lines to original images
-    return thresh_image
+    return annotate_img
 
 
 def main():
@@ -410,7 +425,7 @@ def main():
         plt.show()
 
     elif (mode == 'video'):
-        input_clip = VideoFileClip(video_dir).subclip(20,21)
+        input_clip = VideoFileClip(video_dir)
         output_clip = input_clip.fl_image(process_img)
         output_clip.write_videofile(video_dir_out, audio=False)
 
