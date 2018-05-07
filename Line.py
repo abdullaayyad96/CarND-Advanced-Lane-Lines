@@ -75,33 +75,43 @@ class Line():
 
          
     def sanity_check(self):
-
+            
         self.find_curvature(mode='recent')
-        #comparing left and right curvs
 
-        if ((self.right_curv > 4000) & (self.right_curv > 4000)):
-            #straigh line case
-            curv_error = 0
+        if (self.detected==False):
+            self.valid_new = True
         else:
-            curv_error = abs((self.right_curv - self.left_curv) / ((self.right_curv + self.left_curv)/2))
+            #comparing left and right curvs
+            if ((self.right_curv > 4000) & (self.right_curv > 4000)):
+                #straigh line case
+                curv_error = 0
+            else:
+                curv_error = abs((self.right_curv - self.left_curv) / ((self.right_curv + self.left_curv)/2))
         
-        #comparing to previous values
-        #defining error values
-        right_curv_error = 0
-        left_curv_error = 0
-
-        if (self.detected):
+            #comparing to previous values
+            #defining error values
+            right_curv_error = 0
+            left_curv_error = 0
             right_curv_error = abs( (self.avg_right_curv - self.right_curv) / self.avg_right_curv )
             left_curv_error = abs( (self.avg_left_curv - self.left_curv) / self.avg_left_curv )
 
-        #appending new values
-        if ( (curv_error < 0.75) & (right_curv_error < 0.1) & (left_curv_error < 0.1) ):
-            self.valid_new = True
-            self.last_valid_frame += 1
-            if(self.last_valid_frame>=5):
-                self.detected = False
+            #position error
+            y_eval = self.dim[0]
+            leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval * self.left_poly[2]
+            rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval * self.right_poly[2]
+            base_diff_pix = rightx_base - leftx_base
+            base_diff_act = self.xm_per_pix * base_diff_pix
+            base_error = abs(base_diff_act - 3.7) / 3.7
 
-
+            #appending new values
+            if ((right_curv_error < 0.1) & (left_curv_error < 0.1) & (curv_error < 0.1) & (base_error < 0.1)):
+                self.valid_new = True
+            else: 
+                self.valid_new = False
+                self.last_valid_frame += 1
+                if(self.last_valid_frame>=25):
+                    self.detected = False
+        
     def cvrt_2_act(self):
         #convert polynomials from pixel to actual dimensions in meter
         self.act_avg_right_poly = np.matmul(self.cvrt_mtx, self.avg_right_poly)
@@ -109,12 +119,13 @@ class Line():
 
     def find_avg(self):
         if (self.detected):
-            self.avg_right_poly = 0.9 * self.avg_right_poly + 0.1 * self.right_poly
-            self.avg_left_poly = 0.9 * self.avg_left_poly + 0.1 * self.left_poly
+            self.avg_right_poly = np.add(np.multiply(0.9, self.avg_right_poly), np.multiply(0.1, self.right_poly ) )
+            self.avg_left_poly = np.add(np.multiply(0.9, self.avg_left_poly), np.multiply(0.1, self.left_poly ) )
         else:
             self.avg_right_poly = self.right_poly
             self.avg_left_poly = self.left_poly
             self.detected = True
+            print('not ok')
         
         self.cvrt_2_act()
 

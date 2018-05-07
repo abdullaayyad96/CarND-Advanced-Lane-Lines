@@ -28,16 +28,16 @@ undistort_b = True
 
 #perspective transform settings 
 #These points were obtained manually
-source_points = np.float32([ [594, 450], [688, 450], [280, 675], [1040, 675] ])
-destination_points = np.float32([ [250, 0], [1030, 0], [250, 720], [1030, 720] ])
+source_points = np.float32([ [594, 450], [685, 450], [280, 675], [1040, 675] ])
+destination_points = np.float32([ [300, 0], [980, 0], [300, 720], [980, 720] ])
 
 #thresholding settings
 sobel_thresholding = True
 color_thresholding = True
-sobel_mag_thresh = (30, np.inf)
-sobel_dir_thresh = (0.8, 2.3)
-color_s_thresh = (160, 255)
-color_l_thresh = (160, 255)
+sobel_mag_thresh = (90, np.inf)
+sobel_dir_thresh = (0.7, 1.3)
+color_s_thresh = (150, 255)
+color_l_thresh = (150, 255)
 
 #lane finding settins
 #type of sliding window, convolution or regular
@@ -103,7 +103,7 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     abs_sobelx = np.absolute(sobelx) # Absolute x derivative to accentuate lines away from horizontal
     abs_sobely = np.absolute(sobely) # Absolute y derivative to accentuate lines away from vertical
 
-    sobel_dir = np.arctan2(abs_sobelx, abs_sobely)
+    sobel_dir = np.arctan2(abs_sobely, abs_sobelx)
     sobel_mag = np.sqrt(np.square(sobelx)+np.square(sobely))
     scaled_sobel_mag =  np.uint8(255*sobel_mag/np.max(sobel_mag))
 
@@ -146,36 +146,39 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
 
 def find_lines(binary_warped, Line):
     #Finding the lines by utilizing a sliding window method and returing fitted polynomials
-
-    # Take a histogram of the bottom half of the image
-    histogram = np.sum(binary_warped[binary_warped.shape[0]//2:,:], axis=0)
+    masking_x_region = 100
     
-    # Create an output image to draw on and  visualize the result
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
+    # Take a histogram of the bottom half of the image
+    histogram = np.sum(binary_warped[2*binary_warped.shape[0]//3:,:], axis=0)
 
+    #visualizing line finding
+    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
+    
     # Set the width of the windows +/- margin
-    margin = 100
+    margin = 75
+    window_width = 75 
+    # Choose the number of sliding windows
+    nwindows = 9
+    # Set height of windows
+    window_height = np.int(binary_warped.shape[0]//nwindows)
+
+    # Identify the x and y positions of all nonzero pixels in the image
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
     
     if (slide_mode == 'regular'):
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
-        if (~Line.detected):
+        if (Line.detected==False):
             midpoint = np.int(histogram.shape[0]//2)
-            leftx_base = np.argmax(histogram[:midpoint])
-            rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+            leftx_base = np.argmax(histogram[masking_x_region:midpoint]) + masking_x_region
+            rightx_base = np.argmax(histogram[midpoint:(histogram.shape[0]-masking_x_region)]) + midpoint
         else:
             y_eval = binary_warped.shape[0]
-            leftx_base = Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval * Line.avg_left_poly[2]
-            rightx_base = Line.avg_right_poly[0]*y_eval**2 + Line.avg_right_poly[1]*y_eval * Line.avg_right_poly[2]
+            leftx_base = int(Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval * Line.avg_left_poly[2])
+            rightx_base = int(Line.avg_right_poly[0]*y_eval**2 + Line.avg_right_poly[1]*y_eval * Line.avg_right_poly[2])
 
-        # Choose the number of sliding windows
-        nwindows = 9
-        # Set height of windows
-        window_height = np.int(binary_warped.shape[0]//nwindows)
-        # Identify the x and y positions of all nonzero pixels in the image
-        nonzero = binary_warped.nonzero()
-        nonzeroy = np.array(nonzero[0])
-        nonzerox = np.array(nonzero[1])
         # Current positions to be updated for each window
         leftx_current = leftx_base
         rightx_current = rightx_base
@@ -194,12 +197,10 @@ def find_lines(binary_warped, Line):
             win_xleft_low = leftx_current - margin
             win_xleft_high = leftx_current + margin
             win_xright_low = rightx_current - margin
-            win_xright_high = rightx_current + margin
+            win_xright_high = rightx_current + margin 
             # Draw the windows on the visualization image
-            cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),
-            (0,255,0), 2) 
-            cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),
-            (0,255,0), 2) 
+            cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high), (0,255,0), 2) 
+            cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high), (0,255,0), 2) 
             # Identify the nonzero pixels in x and y within the window
             good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
             (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
@@ -224,15 +225,90 @@ def find_lines(binary_warped, Line):
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds] 
 
+        pts_r = np.vstack((rightx,righty)).astype(np.int32).T
+        cv2.polylines(out_img,  [pts_r],  False,  (255, 0, 0),  30)
+
+        pts_l = np.vstack((leftx,lefty)).astype(np.int32).T
+        cv2.polylines(out_img,  [pts_l],  False,  (255, 0, 0),  30)
+
         #append to line object
         Line.add_points(lefty, leftx, righty, rightx)
 
-    #elif (slide_mode == 'convolution'):
- 
+    elif (slide_mode == 'convolution'):
+        window_centroids = [] # Store the (left,right) window centroid positions per level
+        window = np.ones(window_width) # Create our window template that we will use for convolutions
 
+        # First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
+        # and then np.convolve the vertical image slice with the window template 
+    
+        # Sum quarter bottom of image to get slice, could use a different ratio
+        l_sum = np.sum(binary_warped[int(3*binary_warped.shape[0]/4):,:int(binary_warped.shape[1]/2)], axis=0)
+        l_center = np.argmax(np.convolve(window,l_sum))-window_width/2
+        r_sum = np.sum(binary_warped[int(3*binary_warped.shape[0]/4):,int(binary_warped.shape[1]/2):], axis=0)
+        r_center = np.argmax(np.convolve(window,r_sum))-window_width/2+int(binary_warped.shape[1]/2)
+    
+        window_centroids.append((l_center,r_center))
+        
+        leftx = []
+        lefty = []
+        rightx = []
+        righty = []
+
+        # Create empty lists to receive left and right lane pixel indices
+        left_lane_inds = []
+        right_lane_inds = []
+
+        # Go through each layer looking for max pixel locations
+        for level in range(1,(int)(binary_warped.shape[0]/window_height)):
+            # convolve the window into the vertical slice of the image
+            win_y_high = int(binary_warped.shape[0]-level*window_height)
+            win_y_low = int(binary_warped.shape[0]-(level+1)*window_height)
+            image_layer = np.sum(binary_warped[win_y_low:win_y_high,:], axis=0)
+            conv_signal = np.convolve(window, image_layer)
+            # Find the best left centroid by using past left center as a reference
+            # Use window_width/2 as offset because convolution signal reference is at right side of window, not center of window
+            offset = window_width/2
+            l_min_index = int(max(l_center+offset-margin,0))
+            l_max_index = int(min(l_center+offset+margin,binary_warped.shape[1]))
+            l_center = np.argmax(conv_signal[l_min_index:l_max_index])+l_min_index-offset
+            # Find the best right centroid by using past right center as a reference
+            r_min_index = int(max(r_center+offset-margin,0))
+            r_max_index = int(min(r_center+offset+margin,binary_warped.shape[1]))
+            r_center = np.argmax(conv_signal[r_min_index:r_max_index])+r_min_index-offset
+            # Identify the nonzero pixels in x and y within the window
+            good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
+            (nonzerox >= l_min_index) &  (nonzerox < l_max_index)).nonzero()[0]
+            good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
+            (nonzerox >= r_min_index) &  (nonzerox < r_max_index)).nonzero()[0]
+            # Append these indices to the lists
+            left_lane_inds.append(good_left_inds)
+            right_lane_inds.append(good_right_inds)
+            
+        # Concatenate the arrays of indices
+        left_lane_inds = np.concatenate(left_lane_inds)
+        right_lane_inds = np.concatenate(right_lane_inds)
+
+        # Extract left and right line pixel positions
+        leftx = nonzerox[left_lane_inds]
+        lefty = nonzeroy[left_lane_inds] 
+        rightx = nonzerox[right_lane_inds]
+        righty = nonzeroy[right_lane_inds] 
+
+        pts_r = np.vstack((rightx,righty)).astype(np.int32).T
+        cv2.polylines(out_img,  [pts_r],  False,  (255, 0, 0),  30)
+
+        pts_l = np.vstack((leftx,lefty)).astype(np.int32).T
+        cv2.polylines(out_img,  [pts_l],  False,  (255, 0, 0),  30)
+
+        #append to line object
+        Line.add_points(lefty, leftx, righty, rightx)
+
+    return out_img.astype(np.uint8)
+        
+ 
 def plot(binary_warped, Line):
     #plots and annotates images
-
+        
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0], dtype=np.int)
     left_fitx = np.array(Line.avg_left_poly[0]*ploty**2 + Line.avg_left_poly[1]*ploty + Line.avg_left_poly[2], np.int)
     right_fitx = np.array(Line.avg_right_poly[0]*ploty**2 + Line.avg_right_poly[1]*ploty + Line.avg_right_poly[2], np.int)
@@ -258,37 +334,37 @@ def process_img(input_img):
     #perform undistortion
     input_img = undistort(input_img, mtx, dist)
 
-    #apply perspective transform
-    per_img = perspective_transform(input_img, source_points, destination_points)
-
     #perform color and sobel thresholding
-    thresh_image, color_binary = threshold(per_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
+    thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
 
+    #apply perspective transform
+    per_img = perspective_transform(thresh_image, source_points, destination_points)
+    
     #set parameters for myLine object
-    myLine.set_param(input_img.shape, 3/110, 3.7/780)
+    myLine.set_param(input_img.shape, 3/110, 3.7/680)
 
-    #finding and fitting lane lines
-    find_lines(thresh_image, myLine)
+    ##finding and fitting lane lines
+    #line_finding_img = find_lines(per_img, myLine)
     
     
-    if (myLine.detected):
-        #marking lane lines
-        wraped_marked_img = plot(thresh_image, myLine)
+    #if (myLine.detected):
+    #    #marking lane lines
+    #    wraped_marked_img = plot(per_img, myLine)
 
-        #applying inverse perspective transform
-        marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+    #    #applying inverse perspective transform
+    #    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
 
-        #adding marked image to original image
-        added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+    #    #adding marked image to original image
+    #    added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
-        #annotate image
-        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+    #    #annotate image
+    #    annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
-    else:
-        annotate_img = np.copy(input_img)
+    #else:
+    #    annotate_img = np.copy(input_img)
 
     #Adding marked lines to original images
-    return annotate_img
+    return thresh_image
 
 
 def main():
@@ -334,7 +410,7 @@ def main():
         plt.show()
 
     elif (mode == 'video'):
-        input_clip = VideoFileClip(video_dir)
+        input_clip = VideoFileClip(video_dir).subclip(20,27)
         output_clip = input_clip.fl_image(process_img)
         output_clip.write_videofile(video_dir_out, audio=False)
 
