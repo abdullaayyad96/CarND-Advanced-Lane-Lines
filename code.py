@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -138,9 +138,10 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
 
     # Stack each channel
     # be beneficial to replace this channel with something else.
+    combined_binary = np.zeros_like(sobel_binary)
+    combined_binary[(ls_binary==1) | (sobel_binary==1)] = 1
+    print(ls_binary.dtype, combined_binary.dtype)
     color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
-    combined_binary = np.zeros_like(ls_binary)
-    combined_binary[ (ls_binary == 1) | (sobel_binary == 1)] = 1
     return combined_binary, color_binary
 
 
@@ -336,12 +337,12 @@ def process_img(input_img):
 
     #perform color and sobel thresholding
     thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
-
-    #apply perspective transform
-    per_img = perspective_transform(thresh_image, source_points, destination_points)
+  
+    ##apply perspective transform
+    #per_img = perspective_transform(thresh_image, source_points, destination_points)
     
-    #set parameters for myLine object
-    myLine.set_param(input_img.shape, 3/110, 3.7/680)
+    ##set parameters for myline object
+    #myLine.set_param(input_img.shape, 3/110, 3.7/680)
 
     ##finding and fitting lane lines
     #line_finding_img = find_lines(per_img, myLine)
@@ -410,7 +411,7 @@ def main():
         plt.show()
 
     elif (mode == 'video'):
-        input_clip = VideoFileClip(video_dir).subclip(20,27)
+        input_clip = VideoFileClip(video_dir).subclip(20,21)
         output_clip = input_clip.fl_image(process_img)
         output_clip.write_videofile(video_dir_out, audio=False)
 
