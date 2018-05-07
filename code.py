@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'image'
+mode = 'video'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -141,7 +141,6 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
     combined_binary = np.zeros_like(ls_binary)
     combined_binary[ (ls_binary == 1) | (sobel_binary == 1)] = 1
-    print(ls_binary.dtype, combined_binary.dtype)
     return combined_binary, color_binary
 
 
@@ -264,7 +263,7 @@ def process_img(input_img):
 
     #perform color and sobel thresholding
     thresh_image, color_binary = threshold(per_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
-
+    
     #set parameters for myLine object
     myLine.set_param(input_img.shape, 3/110, 3.7/780)
 
@@ -289,7 +288,7 @@ def process_img(input_img):
         annotate_img = np.copy(input_img)
 
     #Adding marked lines to original images
-    return thresh_image
+    return annotate_img
 
 
 def main():
