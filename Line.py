@@ -146,10 +146,12 @@ class Line():
             self.find_curvature(mode='avg')
 
     def add_points(self, lefty, leftx, righty, rightx):
-        self.leftx = leftx
-        self.lefty = lefty
-        self.rightx = rightx
-        self.righty = righty
+        if((len(lefty)>0) & (len(leftx)>0)): 
+            self.leftx = leftx
+            self.lefty = lefty
+        if((len(righty)>0) & (len(rightx)>0)): 
+            self.rightx = rightx
+            self.righty = righty
 
         self.fit_poly()
         

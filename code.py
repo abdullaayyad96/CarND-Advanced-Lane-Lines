@@ -13,8 +13,8 @@ mode = 'video'
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
 #videos directory
-video_dir = 'project_video.mp4'
-video_dir_out = 'output_project_video.mp4'
+video_dir = 'challenge_video.mp4'
+video_dir_out = 'output_challenge_video.mp4'
 
 #calibration settings
 calibrate_b = True #boolean to determine whether to perform calibration
@@ -34,10 +34,10 @@ destination_points = np.float32([ [300, 0], [980, 0], [300, 720], [980, 720] ])
 #thresholding settings
 sobel_thresholding = True
 color_thresholding = True
-sobel_mag_thresh = (90, np.inf)
+sobel_mag_thresh = (100, np.inf)
 sobel_dir_thresh = (0.7, 1.3)
-color_s_thresh = (150, 255)
-color_l_thresh = (150, 255)
+color_s_thresh = (120, 255)
+color_l_thresh = (90, 255)
 
 #lane finding settins
 #type of sliding window, convolution or regular
@@ -86,11 +86,31 @@ def perspective_transform(img, src, dst):
     M = cv2.getPerspectiveTransform(src, dst)
     #performing and returning perspective transform
     return cv2.warpPerspective(img, M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
+
+
+def region_masking(input_image, vertices):
+    #defining a blank mask to start with
+    mask = np.zeros_like(input_image)   
+    
+    #defining a 3 channel or 1 channel color to fill the mask with depending on the input image
+    if len(input_image.shape) > 2:
+        channel_count = input_image.shape[2]  # i.e. 3 or 4 depending on your image
+        ignore_mask_color = (255,) * channel_count
+    else:
+        ignore_mask_color = 255
+        
+    #filling pixels inside the polygon defined by "vertices" with the fill color    
+    cv2.fillPoly(mask, vertices, ignore_mask_color)
+    
+    #returning the image only where mask pixels are nonzero
+    masked_image = cv2.bitwise_and(input_image, mask)
+    return masked_image
  
 
 def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_mag_thresh=(50, 255), sobel_dir_thresh=(0.7, 1.3)):
     img = np.copy(img)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    height, width = img.shape[0:2]
 
     # Convert to HLS color space and separate the V channel
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
@@ -105,13 +125,26 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
 
     sobel_dir = np.arctan2(abs_sobely, abs_sobelx)
     sobel_mag = np.sqrt(np.square(sobelx)+np.square(sobely))
-    scaled_sobel_mag =  np.uint8(255*sobel_mag/np.max(sobel_mag))
+    
+    #region masking
+    right_bottom = [int(0.9*width), int(0.95*height)]
+    left_bottom  = [int(0.1*width), int(0.95*height)]
+    right_top    = [int(0.55*width), int(0.55*height)]
+    left_top     = [int(0.45*width), int(0.55*height)]
+    vertices = np.array([[left_bottom, left_top, right_top, right_bottom]], dtype=np.int32)
+    masked_sobel_mag = region_masking(sobel_mag, vertices)
+    masked_l_channel = region_masking(l_channel, vertices)
+    masked_s_channel = region_masking(s_channel, vertices)
 
-    sobel_dir_binary = np.zeros_like(s_channel)
-    sobel_dir_binary[(scaled_sobel_mag >= sobel_dir_thresh[0]) & (scaled_sobel_mag <= sobel_dir_thresh[1])] = 1
+    scaled_sobel_mag =  np.uint8(255*masked_sobel_mag/np.max(masked_sobel_mag))
+    scaled_l_channel = np.uint8(255*masked_l_channel/np.max(masked_l_channel)) 
+    scaled_s_channel = np.uint8(255*masked_s_channel/np.max(masked_s_channel)) 
 
-    sobel_mag_binary = np.zeros_like(s_channel)
-    sobel_mag_binary[(sobel_dir >= sobel_mag_thresh[0]) & (sobel_dir <= sobel_mag_thresh[1])] = 1
+    sobel_dir_binary = np.zeros_like(sobel_dir)
+    sobel_dir_binary[(sobel_dir >= sobel_dir_thresh[0]) & (sobel_dir <= sobel_dir_thresh[1])] = 1
+
+    sobel_mag_binary = np.zeros_like(scaled_sobel_mag)
+    sobel_mag_binary[(scaled_sobel_mag >= sobel_mag_thresh[0]) & (scaled_sobel_mag <= sobel_mag_thresh[1])] = 1
 
     sobel_binary = np.zeros_like(s_channel)
     sobel_binary[ (sobel_dir_binary==1) & (sobel_mag_binary==1)] = 1
@@ -120,29 +153,26 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     #sxbinary = np.zeros_like(scaled_sobel)
     #sxbinary[(scaled_sobel > sobelx_thresh[0]) & (scaled_sobel <= sobelx_thresh[1])] = 1
     
-    ## Threshold color s channel
-    #s_binary = np.zeros_like(s_channel)
-    #s_binary[(s_channel >= color_s_thresh[0]) & (s_channel <= color_s_thresh[1])] = 1
+    # Threshold color s channel
+    s_binary = np.zeros_like(scaled_l_channel)
+    s_binary[(scaled_s_channel >= color_s_thresh[0]) & (scaled_s_channel <= color_s_thresh[1])] = 1
 
-    ##threshold color l channel
-    #l_binary = np.zeros_like(s_channel)
-    #l_binary[(s_channel >= color_l_thresh[0]) & (s_channel <= color_l_thresh[1])] = 1
+    #threshold color l channel
+    l_binary = np.zeros_like(scaled_l_channel)
+    l_binary[(scaled_l_channel >= color_l_thresh[0]) & (scaled_l_channel <= color_l_thresh[1])] = 1
 
     ##combining l and s thresholds
     #ls_binary = np.zeros_like(l_binary)
     #ls_binary[ (l_binary == 1) & (s_binary == 1)] = 1
 
-    ls_channel = l_channel + s_channel
-    ls_binary = np.zeros_like(ls_channel)
-    ls_binary[ (ls_channel >= (color_s_thresh[0] + color_l_thresh[0])) & (ls_channel <= (color_s_thresh[1] + color_l_thresh[1]))] = 1
-
+    ls_binary = np.zeros_like(masked_l_channel)
+    ls_binary[ (l_binary==1) & (s_binary==1) ] = 1
     # Stack each channel
     # be beneficial to replace this channel with something else.
     combined_binary = np.zeros_like(sobel_binary)
     combined_binary[(ls_binary==1) | (sobel_binary==1)] = 1
     color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
     return combined_binary, color_binary
-
 
 def find_lines(binary_warped, Line):
     #Finding the lines by utilizing a sliding window method and returing fitted polynomials
@@ -350,36 +380,36 @@ def process_img(input_img):
     input_img = undistort(input_img, mtx, dist)
 
     #perform color and sobel thresholding
-    thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_dir_thresh, sobel_mag_thresh)  
+    thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_mag_thresh, sobel_dir_thresh)  
   
-    #apply perspective transform
-    per_img = perspective_transform(thresh_image, source_points, destination_points)
+    ##apply perspective transform
+    #per_img = perspective_transform(thresh_image, source_points, destination_points)
     
-    #set parameters for myline object
-    myLine.set_param(input_img.shape, 3/110, 3.7/680)
+    ##set parameters for myline object
+    #myLine.set_param(input_img.shape, 3/110, 3.7/680)
 
-    #finding and fitting lane lines
-    line_finding_img = find_lines(per_img, myLine)
+    ##finding and fitting lane lines
+    #line_finding_img = find_lines(per_img, myLine)
     
     
-    if (myLine.detected):
-        #marking lane lines
-        wraped_marked_img = plot(per_img, myLine)
+    #if (myLine.detected):
+    #    #marking lane lines
+    #    wraped_marked_img = plot(per_img, myLine)
 
-        #applying inverse perspective transform
-        marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+    #    #applying inverse perspective transform
+    #    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
 
-        #adding marked image to original image
-        added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+    #    #adding marked image to original image
+    #    added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
-        #annotate image
-        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+    #    #annotate image
+    #    annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
-    else:
-        annotate_img = np.copy(input_img)
+    #else:
+    #    annotate_img = np.copy(input_img)
 
     #Adding marked lines to original images
-    return annotate_img
+    return color_binary
 
 
 def main():
