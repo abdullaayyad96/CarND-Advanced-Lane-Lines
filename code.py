@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'image'
+mode = 'video'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -113,7 +113,7 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     height, width = img.shape[0:2]
     n_pxl = height*width
     s_cut_off_percent = 0.5
-    l_cut_off_percent = 15
+    l_cut_off_percent = 10
     sobel_cut_off_percent = 0.4
 
     # Convert to HLS color space and separate the V channel
@@ -144,58 +144,78 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     scaled_l_channel = np.uint8(255*masked_l_channel/np.max(masked_l_channel)) 
     scaled_s_channel = np.uint8(255*masked_s_channel/np.max(masked_s_channel)) 
 
-    s_sort = np.sort(masked_s_channel.reshape([-1,1]), axis=0)
+    s_sort = np.sort(scaled_s_channel.reshape([-1,1]), axis=0)
     s_thresh = s_sort[-int(n_pxl*s_cut_off_percent/100)][0]
 
-    l_sort = np.sort(masked_l_channel.reshape([-1,1]), axis=0)
+    l_sort = np.sort(scaled_l_channel.reshape([-1,1]), axis=0)
     l_thresh = l_sort[-int(n_pxl*l_cut_off_percent/100)][0]
 
-    sobel_sort = np.sort(masked_sobel_mag.reshape([-1,1]), axis=0)
+    sobel_sort = np.sort(scaled_sobel_mag.reshape([-1,1]), axis=0)
     sobel_thresh = sobel_sort[-int(n_pxl*sobel_cut_off_percent/100)][0]
 
     sobel_dir_binary = np.zeros_like(sobel_dir)
     sobel_dir_binary[(sobel_dir >= sobel_dir_thresh[0]) & (sobel_dir <= sobel_dir_thresh[1])] = 1
 
-    sobel_mag_binary = np.zeros_like(masked_sobel_mag)
-    sobel_mag_binary[(masked_sobel_mag >= sobel_thresh) & (masked_sobel_mag <= sobel_mag_thresh[1])] = 1
+    sobel_mag_cutoff = np.copy(scaled_sobel_mag)
+    sobel_mag_cutoff[scaled_sobel_mag < sobel_thresh] = 0
 
-    sobel_binary = np.zeros_like(s_channel)
-    sobel_binary[ (sobel_dir_binary==1) & (sobel_mag_binary==1)] = 1
+    sobel_cutoff = np.multiply(sobel_mag_cutoff, sobel_dir_binary)
+
+    s_cutoff = np.copy(scaled_s_channel)
+    s_cutoff[scaled_s_channel < s_thresh] = 0
+
+    l_cutoff = np.zeros_like(scaled_l_channel)
+    l_cutoff[scaled_l_channel >= l_thresh] = 1
+
+    ls_cutoff = np.multiply(s_cutoff, l_cutoff)
+
+    #sobel_mag_binary = np.zeros_like(masked_sobel_mag)
+    #sobel_mag_binary[(masked_sobel_mag >= sobel_thresh) & (masked_sobel_mag <= sobel_mag_thresh[1])] = 1
+
+    #sobel_binary = np.zeros_like(s_channel)
+    #sobel_binary[ (sobel_dir_binary==1) & (sobel_mag_binary==1)] = 1
         
     ## Threshold x gradient
     #sxbinary = np.zeros_like(scaled_sobel)
     #sxbinary[(scaled_sobel > sobelx_thresh[0]) & (scaled_sobel <= sobelx_thresh[1])] = 1
     
-    # Threshold color s channel
-    s_binary = np.zeros_like(masked_s_channel)
-    s_binary[(masked_s_channel >= s_thresh) & (masked_s_channel <= color_s_thresh[1])] = 1
+    ## Threshold color s channel
+    #s_binary = np.zeros_like(masked_s_channel)
+    #s_binary[(masked_s_channel >= s_thresh) & (masked_s_channel <= color_s_thresh[1])] = 1
 
-    #threshold color l channel
-    l_binary = np.zeros_like(masked_l_channel)
-    l_binary[(masked_l_channel >= l_thresh) & (masked_l_channel <= color_l_thresh[1])] = 1
+    ##threshold color l channel
+    #l_binary = np.zeros_like(masked_l_channel)
+    #l_binary[(masked_l_channel >= l_thresh) & (masked_l_channel <= color_l_thresh[1])] = 1
 
     ##combining l and s thresholds
     #ls_binary = np.zeros_like(l_binary)
     #ls_binary[ (l_binary == 1) & (s_binary == 1)] = 1
 
-    ls_binary = np.zeros_like(masked_l_channel)
-    ls_binary[ (l_binary==1) & (s_binary==1) ] = 1
-    # Stack each channel
-    # be beneficial to replace this channel with something else.
-    combined_binary = np.zeros_like(sobel_binary)
-    combined_binary[(ls_binary==1) | (sobel_binary==1)] = 1
-    color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
-    return combined_binary, color_binary
+    #ls_binary = np.zeros_like(masked_l_channel)
+    #ls_binary[ (l_binary==1) & (s_binary==1) ] = 1
+    ## Stack each channel
+    ## be beneficial to replace this channel with something else.
+    #combined_binary = np.zeros_like(sobel_binary)
+    #combined_binary[(ls_binary==1) | (sobel_binary==1)] = 1
+    #color_binary = np.uint8(np.dstack(( np.zeros_like(s_channel), ls_binary, sobel_binary))) * 255
 
-def find_lines(binary_warped, Line):
+    color_binary = np.uint8(np.dstack(( ls_cutoff, sobel_cutoff, np.zeros_like(ls_cutoff)))) * 255
+    combined_cutoff = (ls_cutoff + sobel_cutoff) / 2
+
+    return combined_cutoff, color_binary
+
+def find_lines(cut_off_img, Line):
     #Finding the lines by utilizing a sliding window method and returing fitted polynomials
     masking_x_region = 100
+
+    binary_warped = np.zeros_like(cut_off_img)
+    binary_warped[ cut_off_img!=0] = 1
     
     # Take a histogram of the bottom half of the image
-    histogram = np.sum(binary_warped[2*binary_warped.shape[0]//3:,:], axis=0)
+    histogram = np.sum(cut_off_img[2*cut_off_img.shape[0]//3:,:], axis=0)
 
     #visualizing line finding
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
+    out_img = np.dstack((cut_off_img, cut_off_img, cut_off_img))*255
     
     # Set the width of the windows +/- margin
     margin = 75
@@ -203,7 +223,7 @@ def find_lines(binary_warped, Line):
     # Choose the number of sliding windows
     nwindows = 9
     # Set height of windows
-    window_height = np.int(binary_warped.shape[0]//nwindows)
+    window_height = np.int(cut_off_img.shape[0]//nwindows)
 
     # Identify the x and y positions of all nonzero pixels in the image
     nonzero = binary_warped.nonzero()
@@ -215,8 +235,8 @@ def find_lines(binary_warped, Line):
         # These will be the starting point for the left and right lines
         midpoint = np.int(histogram.shape[0]//2)
         if (Line.detected==False):
-            leftx_base = np.argmax(histogram[masking_x_region:midpoint]) + masking_x_region
-            rightx_base = np.argmax(histogram[midpoint:(histogram.shape[0]-masking_x_region)]) + midpoint
+            leftx_base = np.argmax(histogram[masking_x_region:(midpoint-masking_x_region)]) + masking_x_region
+            rightx_base = np.argmax(histogram[(midpoint+masking_x_region):(histogram.shape[0]-masking_x_region)]) + midpoint + masking_x_region
         else:
             y_eval = binary_warped.shape[0]
             leftx_base = int(Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval + Line.avg_left_poly[2])
@@ -284,10 +304,10 @@ def find_lines(binary_warped, Line):
         righty = nonzeroy[right_lane_inds] 
 
         pts_r = np.vstack((rightx,righty)).astype(np.int32).T
-        cv2.polylines(out_img,  [pts_r],  False,  (255, 0, 0),  30)
+        cv2.polylines(out_img,  [pts_r],  False,  (0, 0, 255),  30)
 
         pts_l = np.vstack((leftx,lefty)).astype(np.int32).T
-        cv2.polylines(out_img,  [pts_l],  False,  (255, 0, 0),  30)
+        cv2.polylines(out_img,  [pts_l],  False,  (0, 0, 255),  30)
 
         #append to line object
         Line.add_points(lefty, leftx, righty, rightx)
@@ -405,25 +425,22 @@ def process_img(input_img):
     line_finding_img = find_lines(per_img, myLine)
     
     
-    if (myLine.detected):
-        #marking lane lines
-        wraped_marked_img = plot(per_img, myLine)
+    #marking lane lines
+    wraped_marked_img = plot(per_img, myLine)
 
-        #applying inverse perspective transform
-        marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+    #applying inverse perspective transform
+    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
 
-        #adding marked image to original image
-        added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+    #adding marked image to original image
+    added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
-        #annotate image
-        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
-
-    else:
-        annotate_img = np.copy(input_img)
+    #annotate image
+    annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
     #Adding marked lines to original images
+    #return cv2.putText(annotate_img, myLine.invalid_msg, (100,200), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+    #return cv2.putText(annotate_img, "Distance: {0:.2f} m, new distance: {0:.2f}".format(myLine.avg_distance, myLine.recent_distance), (100,200), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
     return annotate_img
-
 
 def main():
     #global calibration coefficients

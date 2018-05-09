@@ -41,6 +41,14 @@ class Line():
         #polynomial coefficients averaged in actual dimensions
         self.act_avg_right_poly = [np.array([False])]  
         self.act_avg_left_poly = [np.array([False])]
+        #invalid fram msg
+        self.invalid_msg = 'nthn'
+        #averaging factor
+        self.avg_factor = 0.8
+        #average distance between the two polynomials
+        self.avg_distance = 3.7
+        #distance between the two recent polynomials
+        self.recent_distance = 0
         
     
     def set_param(self, image_shape, ym_per_pix, xm_per_pix):
@@ -70,17 +78,28 @@ class Line():
             self.radius_of_curvature = (self.avg_right_curv + self.avg_left_curv) / 2
 
             #for straight lines radius of curvs would be very high
-            if(self.radius_of_curvature > 8000):
+            if(self.radius_of_curvature > 4000):
                 self.radius_of_curvature = np.inf
 
-         
+    def calc_area(self, mode='recent'):
+        y_eval = self.dim[0]
+        #calculating the area between the two polynomials by integrating the differance between the two polynomials from 0 to y_eval
+        #calculating in pixel dimensions
+        if(mode=='recent'):
+            distance_pxl = ((1/3)*self.right_poly[0]*y_eval**3 + (1/2)*self.right_poly[1]*y_eval**2 + self.right_poly[2]*y_eval - (1/3)*self.left_poly[0]*y_eval**3 - (1/2)*self.left_poly[1]*y_eval**2 - self.left_poly[2]*y_eval ) / y_eval
+            self.recent_distance = distance_pxl * self.xm_per_pix
+        elif(mode=='avg'):
+            avg_distance_pxl = ((1/3)*self.avg_right_poly[0]*y_eval**3 + (1/2)*self.avg_right_poly[1]*y_eval**2 + self.avg_right_poly[2]*y_eval - (1/3)*self.avg_left_poly[0]*y_eval**3 - (1/2)*self.avg_left_poly[1]*y_eval**2 - self.avg_left_poly[2]*y_eval) / y_eval
+            self.avg_distance = avg_distance_pxl * self.xm_per_pix
+    
     def sanity_check(self):
             
-        self.find_curvature(mode='recent')
-
         if (self.detected==False):
             self.valid_new = True
         else:
+            self.find_curvature(mode='recent')
+            self.calc_area(mode='recent')
+
             #comparing left and right curvs
             if ((self.right_curv > 3000) & (self.right_curv > 3000)):
                 #straigh line case
@@ -99,26 +118,52 @@ class Line():
             else:
                 left_curv_error = abs( (self.avg_left_curv - self.left_curv) / self.avg_left_curv )
 
-            #position error
+            #position errors
             y_eval = self.dim[0]
             leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
             rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
+            avg_leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
+            avg_rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
             base_diff_pix = rightx_base - leftx_base
             base_diff_act = self.xm_per_pix * base_diff_pix
             base_error = abs(base_diff_act - 3.7) / 3.7
+            left_base_error = abs(leftx_base - avg_leftx_base) / avg_leftx_base
+            right_base_error = abs(rightx_base - avg_rightx_base) / avg_rightx_base
+
+            distance_error = abs(self.recent_distance - 3.7) / 3.7
+            avg_distance_error = abs(self.recent_distance - self.avg_distance) / self.avg_distance
 
             #appending new values
-            if ((right_curv_error < 0.7) & (left_curv_error < 0.7) & (curv_error < 1) & (base_error < 0.1)):
+            #if (((right_curv_error < 0.7) & (left_curv_error < 0.7) & (curv_error < 0.8) & (base_error < 0.1) & (left_base_error<0.2) & (right_base_error<0.2)) | True):
+            if((distance_error<0.1) & (avg_distance_error<0.07)):
                 self.valid_new = True
                 self.last_valid_frame=0
+                self.invalid_msg = 'nthn'
+                #if ((right_curv_error > 0.5) | (left_curv_error > 0.5) | (curv_error > 0.5)):
+                #    self.avg_factor = 0.9
+                #else:
+                #    self.avg_factor = 0.75
             else: 
                 self.valid_new = False
                 self.last_valid_frame += 1
-                if(self.last_valid_frame>=20):
+                #updating error msg
+                #if(base_error>0.1):
+                #    self.invalid_msg = 'base_error: {}'.format(base_error)
+                #if(left_base_error>0.1):
+                #    self.invalid_msg = 'left_base_error: {}'.format(left_base_error)
+                #if(right_base_error>0.2):
+                #    self.invalid_msg = 'right_base_error: {}'.format(right_base_error)
+                #if(right_curv_error>0.7):
+                #    self.invalid_msg = 'right_curv_error: {}'.format(right_curv_error)
+                #if(left_curv_error>0.7):
+                #    self.invalid_msg = 'left_curv_error: {}'.format(left_curv_error)
+                #if(curv_error>0.8):
+                #    self.invalid_msg = 'curv_error: {}'.format(curv_error)
+
+                if(self.last_valid_frame>=50):
                     self.detected = False
-                    self.valid_new = True
-                    self.last_valid_frame=0
-        
+                    self.last_valid_frame = 0
+    
     def cvrt_2_act(self):
         #convert polynomials from pixel to actual dimensions in meter
         self.act_avg_right_poly = np.matmul(self.cvrt_mtx, self.avg_right_poly)
@@ -126,13 +171,14 @@ class Line():
 
     def find_avg(self):
         if (self.detected):
-            self.avg_right_poly = np.add(np.multiply(0.75, self.avg_right_poly), np.multiply(0.25, self.right_poly ) )
-            self.avg_left_poly = np.add(np.multiply(0.75, self.avg_left_poly), np.multiply(0.25, self.left_poly ) )
+            self.avg_right_poly = np.add(np.multiply(self.avg_factor, self.avg_right_poly), np.multiply((1-self.avg_factor), self.right_poly ) )
+            self.avg_left_poly = np.add(np.multiply(self.avg_factor, self.avg_left_poly), np.multiply((1-self.avg_factor), self.left_poly ) )
         else:
             self.avg_right_poly = self.right_poly
             self.avg_left_poly = self.left_poly
             self.detected = True
-        
+
+        self.calc_area(mode='avg')
         self.cvrt_2_act()
 
     def fit_poly(self):
