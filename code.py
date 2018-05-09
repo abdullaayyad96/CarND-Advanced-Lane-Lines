@@ -8,13 +8,13 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
 #videos directory
-video_dir = 'challenge_video.mp4'
-video_dir_out = 'output_challenge_video.mp4'
+video_dir = 'project_video.mp4'
+video_dir_out = 'output_project_video.mp4'
 
 #calibration settings
 calibrate_b = True #boolean to determine whether to perform calibration
@@ -37,7 +37,7 @@ color_thresholding = True
 sobel_mag_thresh = (100, np.inf)
 sobel_dir_thresh = (0.7, 1.3)
 color_s_thresh = (120, 255)
-color_l_thresh = (90, 255)
+color_l_thresh = (0, 255)
 
 #lane finding settins
 #type of sliding window, convolution or regular
@@ -111,6 +111,10 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     img = np.copy(img)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     height, width = img.shape[0:2]
+    n_pxl = height*width
+    s_cut_off_percent = 0.5
+    l_cut_off_percent = 15
+    sobel_cut_off_percent = 0.4
 
     # Convert to HLS color space and separate the V channel
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
@@ -118,8 +122,8 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     l_channel = hls[:,:,1]
     s_channel = hls[:,:,2]
 
-    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3) #sobel in x direction
-    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3) #sobel in y direction
+    sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0, ksize=3) #sobel in x direction
+    sobely = cv2.Sobel(l_channel, cv2.CV_64F, 0, 1, ksize=3) #sobel in y direction
     abs_sobelx = np.absolute(sobelx) # Absolute x derivative to accentuate lines away from horizontal
     abs_sobely = np.absolute(sobely) # Absolute y derivative to accentuate lines away from vertical
 
@@ -129,8 +133,8 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     #region masking
     right_bottom = [int(0.9*width), int(0.95*height)]
     left_bottom  = [int(0.1*width), int(0.95*height)]
-    right_top    = [int(0.55*width), int(0.55*height)]
-    left_top     = [int(0.45*width), int(0.55*height)]
+    right_top    = [int(0.55*width), int(0.6*height)]
+    left_top     = [int(0.45*width), int(0.6*height)]
     vertices = np.array([[left_bottom, left_top, right_top, right_bottom]], dtype=np.int32)
     masked_sobel_mag = region_masking(sobel_mag, vertices)
     masked_l_channel = region_masking(l_channel, vertices)
@@ -140,11 +144,20 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     scaled_l_channel = np.uint8(255*masked_l_channel/np.max(masked_l_channel)) 
     scaled_s_channel = np.uint8(255*masked_s_channel/np.max(masked_s_channel)) 
 
+    s_sort = np.sort(masked_s_channel.reshape([-1,1]), axis=0)
+    s_thresh = s_sort[-int(n_pxl*s_cut_off_percent/100)][0]
+
+    l_sort = np.sort(masked_l_channel.reshape([-1,1]), axis=0)
+    l_thresh = l_sort[-int(n_pxl*l_cut_off_percent/100)][0]
+
+    sobel_sort = np.sort(masked_sobel_mag.reshape([-1,1]), axis=0)
+    sobel_thresh = sobel_sort[-int(n_pxl*sobel_cut_off_percent/100)][0]
+
     sobel_dir_binary = np.zeros_like(sobel_dir)
     sobel_dir_binary[(sobel_dir >= sobel_dir_thresh[0]) & (sobel_dir <= sobel_dir_thresh[1])] = 1
 
-    sobel_mag_binary = np.zeros_like(scaled_sobel_mag)
-    sobel_mag_binary[(scaled_sobel_mag >= sobel_mag_thresh[0]) & (scaled_sobel_mag <= sobel_mag_thresh[1])] = 1
+    sobel_mag_binary = np.zeros_like(masked_sobel_mag)
+    sobel_mag_binary[(masked_sobel_mag >= sobel_thresh) & (masked_sobel_mag <= sobel_mag_thresh[1])] = 1
 
     sobel_binary = np.zeros_like(s_channel)
     sobel_binary[ (sobel_dir_binary==1) & (sobel_mag_binary==1)] = 1
@@ -154,12 +167,12 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     #sxbinary[(scaled_sobel > sobelx_thresh[0]) & (scaled_sobel <= sobelx_thresh[1])] = 1
     
     # Threshold color s channel
-    s_binary = np.zeros_like(scaled_l_channel)
-    s_binary[(scaled_s_channel >= color_s_thresh[0]) & (scaled_s_channel <= color_s_thresh[1])] = 1
+    s_binary = np.zeros_like(masked_s_channel)
+    s_binary[(masked_s_channel >= s_thresh) & (masked_s_channel <= color_s_thresh[1])] = 1
 
     #threshold color l channel
-    l_binary = np.zeros_like(scaled_l_channel)
-    l_binary[(scaled_l_channel >= color_l_thresh[0]) & (scaled_l_channel <= color_l_thresh[1])] = 1
+    l_binary = np.zeros_like(masked_l_channel)
+    l_binary[(masked_l_channel >= l_thresh) & (masked_l_channel <= color_l_thresh[1])] = 1
 
     ##combining l and s thresholds
     #ls_binary = np.zeros_like(l_binary)
@@ -382,34 +395,34 @@ def process_img(input_img):
     #perform color and sobel thresholding
     thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_mag_thresh, sobel_dir_thresh)  
   
-    ##apply perspective transform
-    #per_img = perspective_transform(thresh_image, source_points, destination_points)
+    #apply perspective transform
+    per_img = perspective_transform(thresh_image, source_points, destination_points)
     
-    ##set parameters for myline object
-    #myLine.set_param(input_img.shape, 3/110, 3.7/680)
+    #set parameters for myline object
+    myLine.set_param(input_img.shape, 3/110, 3.7/680)
 
-    ##finding and fitting lane lines
-    #line_finding_img = find_lines(per_img, myLine)
+    #finding and fitting lane lines
+    line_finding_img = find_lines(per_img, myLine)
     
     
-    #if (myLine.detected):
-    #    #marking lane lines
-    #    wraped_marked_img = plot(per_img, myLine)
+    if (myLine.detected):
+        #marking lane lines
+        wraped_marked_img = plot(per_img, myLine)
 
-    #    #applying inverse perspective transform
-    #    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+        #applying inverse perspective transform
+        marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
 
-    #    #adding marked image to original image
-    #    added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+        #adding marked image to original image
+        added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
-    #    #annotate image
-    #    annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+        #annotate image
+        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
-    #else:
-    #    annotate_img = np.copy(input_img)
+    else:
+        annotate_img = np.copy(input_img)
 
     #Adding marked lines to original images
-    return color_binary
+    return annotate_img
 
 
 def main():

@@ -70,7 +70,7 @@ class Line():
             self.radius_of_curvature = (self.avg_right_curv + self.avg_left_curv) / 2
 
             #for straight lines radius of curvs would be very high
-            if(self.radius_of_curvature > 10000):
+            if(self.radius_of_curvature > 8000):
                 self.radius_of_curvature = np.inf
 
          
@@ -108,13 +108,13 @@ class Line():
             base_error = abs(base_diff_act - 3.7) / 3.7
 
             #appending new values
-            if ((right_curv_error < 0.5) & (left_curv_error < 0.5) & (curv_error < 0.8) & (base_error < 0.1)):
+            if ((right_curv_error < 0.7) & (left_curv_error < 0.7) & (curv_error < 1) & (base_error < 0.1)):
                 self.valid_new = True
                 self.last_valid_frame=0
             else: 
                 self.valid_new = False
                 self.last_valid_frame += 1
-                if(self.last_valid_frame>=10):
+                if(self.last_valid_frame>=20):
                     self.detected = False
                     self.valid_new = True
                     self.last_valid_frame=0
@@ -126,8 +126,8 @@ class Line():
 
     def find_avg(self):
         if (self.detected):
-            self.avg_right_poly = np.add(np.multiply(0.8, self.avg_right_poly), np.multiply(0.2, self.right_poly ) )
-            self.avg_left_poly = np.add(np.multiply(0.8, self.avg_left_poly), np.multiply(0.2, self.left_poly ) )
+            self.avg_right_poly = np.add(np.multiply(0.75, self.avg_right_poly), np.multiply(0.25, self.right_poly ) )
+            self.avg_left_poly = np.add(np.multiply(0.75, self.avg_left_poly), np.multiply(0.25, self.left_poly ) )
         else:
             self.avg_right_poly = self.right_poly
             self.avg_left_poly = self.left_poly
