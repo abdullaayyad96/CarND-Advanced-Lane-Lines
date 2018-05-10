@@ -135,7 +135,7 @@ class Line():
 
             #appending new values
             #if (((right_curv_error < 0.7) & (left_curv_error < 0.7) & (curv_error < 0.8) & (base_error < 0.1) & (left_base_error<0.2) & (right_base_error<0.2)) | True):
-            if((distance_error<0.1) & (avg_distance_error<0.07)):
+            if((distance_error<0.07) & (avg_distance_error<0.05)):
                 self.valid_new = True
                 self.last_valid_frame=0
                 self.invalid_msg = 'nthn'

@@ -114,7 +114,7 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     n_pxl = height*width
     s_cut_off_percent = 0.5
     l_cut_off_percent = 10
-    sobel_cut_off_percent = 0.4
+    sobel_cut_off_percent = 0.6
 
     # Convert to HLS color space and separate the V channel
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
@@ -131,10 +131,10 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     sobel_mag = np.sqrt(np.square(sobelx)+np.square(sobely))
     
     #region masking
-    right_bottom = [int(0.9*width), int(0.95*height)]
-    left_bottom  = [int(0.1*width), int(0.95*height)]
-    right_top    = [int(0.55*width), int(0.6*height)]
-    left_top     = [int(0.45*width), int(0.6*height)]
+    right_bottom = [int(0.85*width), int(0.95*height)]
+    left_bottom  = [int(0.15*width), int(0.95*height)]
+    right_top    = [int(0.55*width), int(0.57*height)]
+    left_top     = [int(0.45*width), int(0.57*height)]
     vertices = np.array([[left_bottom, left_top, right_top, right_bottom]], dtype=np.int32)
     masked_sobel_mag = region_masking(sobel_mag, vertices)
     masked_l_channel = region_masking(l_channel, vertices)
@@ -206,7 +206,7 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
 
 def find_lines(cut_off_img, Line):
     #Finding the lines by utilizing a sliding window method and returing fitted polynomials
-    masking_x_region = 100
+    masking_x_region = 150
 
     binary_warped = np.zeros_like(cut_off_img)
     binary_warped[ cut_off_img!=0] = 1
@@ -218,10 +218,10 @@ def find_lines(cut_off_img, Line):
     out_img = np.dstack((cut_off_img, cut_off_img, cut_off_img))*255
     
     # Set the width of the windows +/- margin
-    margin = 75
-    window_width = 75 
+    margin = 50
+    window_width = 50
     # Choose the number of sliding windows
-    nwindows = 9
+    nwindows = 10
     # Set height of windows
     window_height = np.int(cut_off_img.shape[0]//nwindows)
 
@@ -282,13 +282,13 @@ def find_lines(cut_off_img, Line):
                 if(left_momentum==0):
                     left_momentum = left_change
                 else:
-                    left_momentum = 0.2*left_momentum + 0.8*left_change
+                    left_momentum = 0.3*left_momentum + left_change
             if len(good_right_inds) > minpix:        
                 right_change = np.int(np.mean(nonzerox[good_right_inds])) - rightx_current
                 if(right_momentum!=0):
                     right_momentum = right_change
                 else:
-                    right_momentum = 0.2*right_momentum + 0.8*right_change
+                    right_momentum = 0.3*right_momentum + right_change
 
             leftx_current = leftx_current + int(left_momentum)        
             rightx_current = rightx_current + int(right_momentum)
@@ -424,7 +424,7 @@ def process_img(input_img):
     #finding and fitting lane lines
     line_finding_img = find_lines(per_img, myLine)
     
-    
+    #per_img_t = perspective_transform(input_img, source_points, destination_points)
     #marking lane lines
     wraped_marked_img = plot(per_img, myLine)
 
