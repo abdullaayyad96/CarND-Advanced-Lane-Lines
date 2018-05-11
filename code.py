@@ -8,13 +8,13 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
 #videos directory
-video_dir = 'project_video.mp4'
-video_dir_out = 'output_project_video.mp4'
+video_dir = 'challenge_video.mp4'
+video_dir_out = 'output_challenge_video_thresh.mp4'
 
 #calibration settings
 calibrate_b = True #boolean to determine whether to perform calibration
@@ -29,7 +29,7 @@ undistort_b = True
 #perspective transform settings 
 #These points were obtained manually
 source_points = np.float32([ [594, 450], [685, 450], [280, 675], [1040, 675] ])
-destination_points = np.float32([ [300, 0], [980, 0], [300, 720], [980, 720] ])
+destination_points = np.float32([ [320, 0], [960, 0], [320, 720], [960, 720] ])
 
 #thresholding settings
 sobel_thresholding = True
@@ -112,9 +112,9 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     height, width = img.shape[0:2]
     n_pxl = height*width
-    s_cut_off_percent = 0.5
-    l_cut_off_percent = 10
-    sobel_cut_off_percent = 0.6
+    s_cut_off_percent = 0.4
+    l_cut_off_percent = 12
+    sobel_cut_off_percent = 0.35
 
     # Convert to HLS color space and separate the V channel
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
@@ -131,11 +131,12 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     sobel_mag = np.sqrt(np.square(sobelx)+np.square(sobely))
     
     #region masking
-    right_bottom = [int(0.85*width), int(0.95*height)]
-    left_bottom  = [int(0.15*width), int(0.95*height)]
-    right_top    = [int(0.55*width), int(0.57*height)]
-    left_top     = [int(0.45*width), int(0.57*height)]
+    right_bottom = [int(0.9*width), int(0.93*height)]
+    left_bottom  = [int(0.1*width), int(0.93*height)]
+    right_top    = [int(0.57*width), int(0.625*height)]#pervious 0.57*width
+    left_top     = [int(0.43*width), int(0.625*height)]#pervious 0.43*width
     vertices = np.array([[left_bottom, left_top, right_top, right_bottom]], dtype=np.int32)
+    masked_img = region_masking(img, vertices)
     masked_sobel_mag = region_masking(sobel_mag, vertices)
     masked_l_channel = region_masking(l_channel, vertices)
     masked_s_channel = region_masking(s_channel, vertices)
@@ -202,11 +203,11 @@ def threshold(img, color_s_thresh=(150, 255), color_l_thresh=(100, 255), sobel_m
     color_binary = np.uint8(np.dstack(( ls_cutoff, sobel_cutoff, np.zeros_like(ls_cutoff)))) * 255
     combined_cutoff = (ls_cutoff + sobel_cutoff) / 2
 
-    return combined_cutoff, color_binary
+    return combined_cutoff, color_binary, masked_img
 
 def find_lines(cut_off_img, Line):
     #Finding the lines by utilizing a sliding window method and returing fitted polynomials
-    masking_x_region = 150
+    masking_x_region = 100
 
     binary_warped = np.zeros_like(cut_off_img)
     binary_warped[ cut_off_img!=0] = 1
@@ -282,16 +283,20 @@ def find_lines(cut_off_img, Line):
                 if(left_momentum==0):
                     left_momentum = left_change
                 else:
-                    left_momentum = 0.3*left_momentum + left_change
+                    left_momentum = 1.1*left_momentum + left_change
             if len(good_right_inds) > minpix:        
                 right_change = np.int(np.mean(nonzerox[good_right_inds])) - rightx_current
                 if(right_momentum!=0):
                     right_momentum = right_change
                 else:
-                    right_momentum = 0.3*right_momentum + right_change
-
-            leftx_current = leftx_current + int(left_momentum)        
-            rightx_current = rightx_current + int(right_momentum)
+                    right_momentum = 1.1*right_momentum + right_change
+            
+            if(myLine.detected==False):
+                leftx_current = leftx_current + int(left_momentum)        
+                rightx_current = rightx_current + int(right_momentum)
+            else:
+                leftx_current = int( 0.5*(leftx_current + left_momentum) + 0.5*(Line.avg_left_poly[0]*win_y_low**2 + Line.avg_left_poly[1]*win_y_low + Line.avg_left_poly[2]) )
+                rightx_current = int( 0.5*(rightx_current + right_momentum) + 0.5*(Line.avg_right_poly[0]*win_y_low**2 + Line.avg_right_poly[1]*win_y_low + Line.avg_right_poly[2]) )
 
         # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
@@ -304,10 +309,10 @@ def find_lines(cut_off_img, Line):
         righty = nonzeroy[right_lane_inds] 
 
         pts_r = np.vstack((rightx,righty)).astype(np.int32).T
-        cv2.polylines(out_img,  [pts_r],  False,  (0, 0, 255),  30)
+        cv2.polylines(out_img,  [pts_r],  False,  (0, 0, 255),  5)
 
         pts_l = np.vstack((leftx,lefty)).astype(np.int32).T
-        cv2.polylines(out_img,  [pts_l],  False,  (0, 0, 255),  30)
+        cv2.polylines(out_img,  [pts_l],  False,  (0, 0, 255),  5)
 
         #append to line object
         Line.add_points(lefty, leftx, righty, rightx)
@@ -386,13 +391,12 @@ def find_lines(cut_off_img, Line):
  
 def plot(binary_warped, Line):
     #plots and annotates images
-        
+    out_layer = np.zeros_like(binary_warped)
+    out_img = np.uint8(np.dstack(( out_layer, out_layer, out_layer)))
+
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0], dtype=np.int)
     left_fitx = np.array(Line.avg_left_poly[0]*ploty**2 + Line.avg_left_poly[1]*ploty + Line.avg_left_poly[2], np.int)
     right_fitx = np.array(Line.avg_right_poly[0]*ploty**2 + Line.avg_right_poly[1]*ploty + Line.avg_right_poly[2], np.int)
-
-    out_layer = np.zeros_like(binary_warped)
-    out_img = np.uint8(np.dstack(( out_layer, out_layer, out_layer)))
 
     pts_r = np.vstack((right_fitx,ploty)).astype(np.int32).T
     cv2.polylines(out_img,  [pts_r],  False,  (0, 255, 0),  30)
@@ -413,31 +417,34 @@ def process_img(input_img):
     input_img = undistort(input_img, mtx, dist)
 
     #perform color and sobel thresholding
-    thresh_image, color_binary = threshold(input_img, color_s_thresh, color_l_thresh, sobel_mag_thresh, sobel_dir_thresh)  
+    thresh_image, color_binary, region_masked_img = threshold(input_img, color_s_thresh, color_l_thresh, sobel_mag_thresh, sobel_dir_thresh)  
   
     #apply perspective transform
     per_img = perspective_transform(thresh_image, source_points, destination_points)
     
     #set parameters for myline object
-    myLine.set_param(input_img.shape, 3/110, 3.7/680)
+    myLine.set_param(input_img.shape, 3/110, 3.7/640)
 
     #finding and fitting lane lines
     line_finding_img = find_lines(per_img, myLine)
     
     #per_img_t = perspective_transform(input_img, source_points, destination_points)
+    if(myLine.detected):
     #marking lane lines
-    wraped_marked_img = plot(per_img, myLine)
+        wraped_marked_img = plot(per_img, myLine)
 
-    #applying inverse perspective transform
-    marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
+        #applying inverse perspective transform
+        marked_img = perspective_transform(wraped_marked_img, destination_points, source_points)
 
-    #adding marked image to original image
-    added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
+        #adding marked image to original image
+        added_img = cv2.addWeighted(input_img, 1, marked_img, 0.5, 0)
 
-    #annotate image
-    annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+        #annotate image
+        annotate_img = cv2.putText(added_img,"Line curveture: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
-    #Adding marked lines to original images
+    else:
+        annotate_img = cv2.putText(input_img,"No Line Detected", (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
+    ##Adding marked lines to original images
     #return cv2.putText(annotate_img, myLine.invalid_msg, (100,200), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
     #return cv2.putText(annotate_img, "Distance: {0:.2f} m, new distance: {0:.2f}".format(myLine.avg_distance, myLine.recent_distance), (100,200), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
     return annotate_img
@@ -485,7 +492,7 @@ def main():
         plt.show()
 
     elif (mode == 'video'):
-        input_clip = VideoFileClip(video_dir)
+        input_clip = VideoFileClip(video_dir).subclip(0,3)
         output_clip = input_clip.fl_image(process_img)
         output_clip.write_videofile(video_dir_out, audio=False)
 

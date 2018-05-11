@@ -94,48 +94,62 @@ class Line():
     
     def sanity_check(self):
             
-        if (self.detected==False):
+        #if (self.detected==False):
+        if(False):
             self.valid_new = True
         else:
             self.find_curvature(mode='recent')
             self.calc_area(mode='recent')
 
-            #comparing left and right curvs
-            if ((self.right_curv > 3000) & (self.right_curv > 3000)):
-                #straigh line case
-                curv_error = 0
-            else:
-                curv_error = abs((self.right_curv - self.left_curv) / ((self.right_curv + self.left_curv)/2))
+            ##comparing left and right curvs
+            #if ((self.right_curv > 3000) & (self.right_curv > 3000)):
+            #    #straigh line case
+            #    curv_error = 0
+            #else:
+            #    curv_error = abs((self.right_curv - self.left_curv) / ((self.right_curv + self.left_curv)/2))
         
-            #comparing to previous values
-            #defining error values
-            if(self.avg_right_curv > 3000):
-                right_curv_error = 0
-            else:
-                right_curv_error = abs( (self.avg_right_curv - self.right_curv) / self.avg_right_curv )
-            if(self.avg_left_curv > 3000):
-                left_curv_error = 0
-            else:
-                left_curv_error = abs( (self.avg_left_curv - self.left_curv) / self.avg_left_curv )
+            ##comparing to previous values
+            ##defining error values
+            #if(self.avg_right_curv > 3000):
+            #    right_curv_error = 0
+            #else:
+            #    right_curv_error = abs( (self.avg_right_curv - self.right_curv) / self.avg_right_curv )
+            #if(self.avg_left_curv > 3000):
+            #    left_curv_error = 0
+            #else:
+            #    left_curv_error = abs( (self.avg_left_curv - self.left_curv) / self.avg_left_curv )
 
-            #position errors
-            y_eval = self.dim[0]
-            leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
-            rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
-            avg_leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
-            avg_rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
-            base_diff_pix = rightx_base - leftx_base
-            base_diff_act = self.xm_per_pix * base_diff_pix
-            base_error = abs(base_diff_act - 3.7) / 3.7
-            left_base_error = abs(leftx_base - avg_leftx_base) / avg_leftx_base
-            right_base_error = abs(rightx_base - avg_rightx_base) / avg_rightx_base
+            ##position errors
+            #y_eval = self.dim[0]
+            #leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
+            #rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
+            #avg_leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
+            #avg_rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
+            #base_diff_pix = rightx_base - leftx_base
+            #base_diff_act = self.xm_per_pix * base_diff_pix
+            #base_error = abs(base_diff_act - 3.7) / 3.7
+            #left_base_error = abs(leftx_base - avg_leftx_base) / avg_leftx_base
+            #right_base_error = abs(rightx_base - avg_rightx_base) / avg_rightx_base
 
             distance_error = abs(self.recent_distance - 3.7) / 3.7
-            avg_distance_error = abs(self.recent_distance - self.avg_distance) / self.avg_distance
+            if(self.detected):
+                avg_distance_error = abs(self.recent_distance - self.avg_distance) / self.avg_distance
+
+                y_eval = self.dim[0]
+                leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
+                rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
+                avg_leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
+                avg_rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
+                base_diff_pix = rightx_base - leftx_base
+                base_diff_act = self.xm_per_pix * base_diff_pix
+                base_error = abs(base_diff_act - 3.7) / 3.7
+            else:
+                avg_distance_error = 0
+                base_error = 0
 
             #appending new values
             #if (((right_curv_error < 0.7) & (left_curv_error < 0.7) & (curv_error < 0.8) & (base_error < 0.1) & (left_base_error<0.2) & (right_base_error<0.2)) | True):
-            if((distance_error<0.07) & (avg_distance_error<0.05)):
+            if((distance_error<0.125) & (avg_distance_error<0.05) & (base_error<0.125)):
                 self.valid_new = True
                 self.last_valid_frame=0
                 self.invalid_msg = 'nthn'
