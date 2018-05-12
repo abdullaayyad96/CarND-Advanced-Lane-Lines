@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -273,9 +273,9 @@ def find_lines(cut_off_img, Line, mode):
             if len(good_right_inds) > minpix:        
                 right_change = np.int(np.mean(nonzerox[good_right_inds])) - rightx_current
                 if(right_momentum==0):
-                    right_momentum = right_momentum + 0.5*right_change
-                else:
                     right_momentum = right_change
+                else:
+                    right_momentum = right_momentum + 0.5*right_change
             #updating windows center values
             if(myLine.detected==False):
                 #in case no previous line was detected, update window position by adding newly calculated momentum values
@@ -376,9 +376,9 @@ def find_lines(cut_off_img, Line, mode):
             if len(good_right_inds) > minpix:        
                 right_change = np.argmax(conv_signal[r_min_index:r_max_index])+r_min_index-offset - r_center
                 if(right_momentum==0):
-                    right_momentum = right_momentum + 0.5*right_change
-                else:
                     right_momentum = right_change
+                else:
+                    right_momentum = right_momentum + 0.5*right_change
             
             #updating windows center values
             if(myLine.detected==False):
