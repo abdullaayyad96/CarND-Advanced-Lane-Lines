@@ -8,7 +8,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'image'
+mode = 'video'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
