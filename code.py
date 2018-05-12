@@ -199,7 +199,7 @@ def find_lines(cut_off_img, Line, mode):
 
     #creating image for visualization
     out_img = np.dstack((cut_off_img, cut_off_img, cut_off_img))*255
-    
+
     #Set the width and margin of the windows +/- margin
     margin = 50
     window_width = 50
