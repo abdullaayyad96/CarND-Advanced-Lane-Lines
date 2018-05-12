@@ -3,7 +3,7 @@ import numpy as np
 class Line():
     """This class tracks """
     def __init__(self):
-        #was there lines detected in previous frames?
+        #A boolean to show whether lines were detected previously
         self.detected = False  
         #Array of recent y and x points for left and right lines
         self.leftx = None
@@ -19,7 +19,7 @@ class Line():
         #conversion parameters from pixel to actual dimesions
         self.ym_per_pix = None
         self.xm_per_pix = None
-        #vector to convert polynomial from pixel to actual dimensions
+        #matrix to convert polynomial from pixel to actual dimensions
         self.cvrt_mtx = None
         #curvature of recent left and right lanes in pixel dimensions
         self.right_curv = None
@@ -41,21 +41,24 @@ class Line():
         #polynomial coefficients averaged in actual dimensions
         self.act_avg_right_poly = [np.array([False])]  
         self.act_avg_left_poly = [np.array([False])]
-        #invalid fram msg
-        self.invalid_msg = 'nthn'
         #averaging factor
         self.avg_factor = 0.8
-        #average distance between the two polynomials
-        self.avg_distance = 3.7
-        #distance between the two recent polynomials
+        #average distance between the two left and right lines
+        self.lines_distance = 3.7
+        #distance between the left and right lines in recent frame
         self.recent_distance = 0
+        #distance between the left and right lines in the base of the recent frame
+        self.base_distance = 0
+        #distance from the center of two lines in meter
+        self.center_displacement = 0
         
     
     def set_param(self, image_shape, ym_per_pix, xm_per_pix):
+        #Setting parameters for use by functions in the object
+
         self.dim = image_shape
         self.ym_per_pix = ym_per_pix
         self.xm_per_pix = xm_per_pix
-
         self.cvrt_mtx = np.diag([ (self.xm_per_pix / self.ym_per_pix**2),  (self.xm_per_pix / self.ym_per_pix), self.xm_per_pix  ])
 
     def find_curvature(self, mode='recent'):
@@ -81,102 +84,62 @@ class Line():
             if(self.radius_of_curvature > 4000):
                 self.radius_of_curvature = np.inf
 
-    def calc_area(self, mode='recent'):
+    def calc_displacement(self):
+        midpoint = self.dim[1]/2
         y_eval = self.dim[0]
-        #calculating the area between the two polynomials by integrating the differance between the two polynomials from 0 to y_eval
+
+        leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
+        rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
+        lane_center = (leftx_base + rightx_base) / 2
+
+        self.center_displacement = self.xm_per_pix * (lane_center - midpoint)
+
+    def calc_avg_distance(self, mode='recent'):
+        y_eval = self.dim[0]
+        #calculating the average area between the two polynomials by integrating the differance between the two polynomials from 0 to y_eval
         #calculating in pixel dimensions
         if(mode=='recent'):
+            #perform calculations on recently added polynomials
             distance_pxl = ((1/3)*self.right_poly[0]*y_eval**3 + (1/2)*self.right_poly[1]*y_eval**2 + self.right_poly[2]*y_eval - (1/3)*self.left_poly[0]*y_eval**3 - (1/2)*self.left_poly[1]*y_eval**2 - self.left_poly[2]*y_eval ) / y_eval
             self.recent_distance = distance_pxl * self.xm_per_pix
         elif(mode=='avg'):
+            #perform calculations on averaged polynomials 
             avg_distance_pxl = ((1/3)*self.avg_right_poly[0]*y_eval**3 + (1/2)*self.avg_right_poly[1]*y_eval**2 + self.avg_right_poly[2]*y_eval - (1/3)*self.avg_left_poly[0]*y_eval**3 - (1/2)*self.avg_left_poly[1]*y_eval**2 - self.avg_left_poly[2]*y_eval) / y_eval
-            self.avg_distance = avg_distance_pxl * self.xm_per_pix
+            self.lines_distance = avg_distance_pxl * self.xm_per_pix
     
     def sanity_check(self):
-            
-        #if (self.detected==False):
-        if(False):
-            self.valid_new = True
+          
+        #calculating average distance error between recently detected left and right lines compared to nominal value of 3.7m
+        self.calc_avg_distance(mode='recent') #calculate the average distance between the two recent polynomials
+        distance_error = abs(self.recent_distance - 3.7) / 3.7 #calculate the error in the distance between the two polynomials
+
+        #calculating distance error between recently detected left and right lines at base compared to nominal value of 3.7m
+        y_eval = self.dim[0]
+        leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
+        rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
+        base_diff_pix = rightx_base - leftx_base
+        self.base_distance = self.xm_per_pix * base_diff_pix
+        base_error = abs(self.base_distance - 3.7) / 3.7
+
+        #comparing average distance between left and right lines of recent and averaged polynomial fittings
+        if(self.detected):
+            #if previous lines were detected
+            avg_distance_error = abs(self.recent_distance - self.lines_distance) / self.lines_distance #calculate the average distance between the averaged polynomials
         else:
-            self.find_curvature(mode='recent')
-            self.calc_area(mode='recent')
+            avg_distance_error = 0
 
-            ##comparing left and right curvs
-            #if ((self.right_curv > 3000) & (self.right_curv > 3000)):
-            #    #straigh line case
-            #    curv_error = 0
-            #else:
-            #    curv_error = abs((self.right_curv - self.left_curv) / ((self.right_curv + self.left_curv)/2))
-        
-            ##comparing to previous values
-            ##defining error values
-            #if(self.avg_right_curv > 3000):
-            #    right_curv_error = 0
-            #else:
-            #    right_curv_error = abs( (self.avg_right_curv - self.right_curv) / self.avg_right_curv )
-            #if(self.avg_left_curv > 3000):
-            #    left_curv_error = 0
-            #else:
-            #    left_curv_error = abs( (self.avg_left_curv - self.left_curv) / self.avg_left_curv )
+        #checking the validaty of newly fitted polynomials based on calculated errors
+        if((distance_error<0.125) & (avg_distance_error<0.05) & (base_error<0.125)):
+            self.valid_new = True
+            self.last_valid_frame=0
+        else: 
+            self.valid_new = False
+            self.last_valid_frame += 1
 
-            ##position errors
-            #y_eval = self.dim[0]
-            #leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
-            #rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
-            #avg_leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
-            #avg_rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
-            #base_diff_pix = rightx_base - leftx_base
-            #base_diff_act = self.xm_per_pix * base_diff_pix
-            #base_error = abs(base_diff_act - 3.7) / 3.7
-            #left_base_error = abs(leftx_base - avg_leftx_base) / avg_leftx_base
-            #right_base_error = abs(rightx_base - avg_rightx_base) / avg_rightx_base
-
-            distance_error = abs(self.recent_distance - 3.7) / 3.7
-            if(self.detected):
-                avg_distance_error = abs(self.recent_distance - self.avg_distance) / self.avg_distance
-
-                y_eval = self.dim[0]
-                leftx_base = self.left_poly[0]*y_eval**2 + self.left_poly[1]*y_eval + self.left_poly[2]
-                rightx_base = self.right_poly[0]*y_eval**2 + self.right_poly[1]*y_eval + self.right_poly[2]
-                avg_leftx_base = self.avg_left_poly[0]*y_eval**2 + self.avg_left_poly[1]*y_eval + self.avg_left_poly[2]
-                avg_rightx_base = self.avg_right_poly[0]*y_eval**2 + self.avg_right_poly[1]*y_eval + self.avg_right_poly[2]
-                base_diff_pix = rightx_base - leftx_base
-                base_diff_act = self.xm_per_pix * base_diff_pix
-                base_error = abs(base_diff_act - 3.7) / 3.7
-            else:
-                avg_distance_error = 0
-                base_error = 0
-
-            #appending new values
-            #if (((right_curv_error < 0.7) & (left_curv_error < 0.7) & (curv_error < 0.8) & (base_error < 0.1) & (left_base_error<0.2) & (right_base_error<0.2)) | True):
-            if((distance_error<0.125) & (avg_distance_error<0.05) & (base_error<0.125)):
-                self.valid_new = True
-                self.last_valid_frame=0
-                self.invalid_msg = 'nthn'
-                #if ((right_curv_error > 0.5) | (left_curv_error > 0.5) | (curv_error > 0.5)):
-                #    self.avg_factor = 0.9
-                #else:
-                #    self.avg_factor = 0.75
-            else: 
-                self.valid_new = False
-                self.last_valid_frame += 1
-                #updating error msg
-                #if(base_error>0.1):
-                #    self.invalid_msg = 'base_error: {}'.format(base_error)
-                #if(left_base_error>0.1):
-                #    self.invalid_msg = 'left_base_error: {}'.format(left_base_error)
-                #if(right_base_error>0.2):
-                #    self.invalid_msg = 'right_base_error: {}'.format(right_base_error)
-                #if(right_curv_error>0.7):
-                #    self.invalid_msg = 'right_curv_error: {}'.format(right_curv_error)
-                #if(left_curv_error>0.7):
-                #    self.invalid_msg = 'left_curv_error: {}'.format(left_curv_error)
-                #if(curv_error>0.8):
-                #    self.invalid_msg = 'curv_error: {}'.format(curv_error)
-
-                if(self.last_valid_frame>=50):
-                    self.detected = False
-                    self.last_valid_frame = 0
+            #if 50 frames since last valid lane detection the search will reset
+            if(self.last_valid_frame>=50):
+                self.detected = False
+                self.last_valid_frame = 0
     
     def cvrt_2_act(self):
         #convert polynomials from pixel to actual dimensions in meter
@@ -184,28 +147,37 @@ class Line():
         self.act_avg_left_poly = np.matmul(self.cvrt_mtx, self.avg_left_poly)
 
     def find_avg(self):
+        #Averaging new polynomials with previous values
+
         if (self.detected):
+            #if previous values exist
             self.avg_right_poly = np.add(np.multiply(self.avg_factor, self.avg_right_poly), np.multiply((1-self.avg_factor), self.right_poly ) )
             self.avg_left_poly = np.add(np.multiply(self.avg_factor, self.avg_left_poly), np.multiply((1-self.avg_factor), self.left_poly ) )
         else:
+            #if no previous values exit
             self.avg_right_poly = self.right_poly
             self.avg_left_poly = self.left_poly
             self.detected = True
 
-        self.calc_area(mode='avg')
-        self.cvrt_2_act()
+        self.calc_avg_distance(mode='avg') #update the average distance between the left and right lines
+        self.cvrt_2_act() #obtain a version of the average polynomials in actual dimensions in meters
 
     def fit_poly(self):
-        # Fit a second order polynomial to each
+        # Fit a second order polynomial to each line
         self.left_poly = np.polyfit(self.lefty, self.leftx, 2)
         self.right_poly = np.polyfit(self.righty, self.rightx, 2)
 
-        self.sanity_check()
+        self.sanity_check() #perform sanity checks to check the validity of the newly fitted polynomial
         if(self.valid_new):
-            self.find_avg()
-            self.find_curvature(mode='avg')
+            #if the new polynomials are valid
+
+            self.find_avg() #averaging the new polynomials with previous ones
+            self.find_curvature(mode='avg') #calculate radius of curvuture
+            self.calc_displacement()
 
     def add_points(self, lefty, leftx, righty, rightx):
+        #Add points of right and left lines for polynomial evaluation and fitting
+
         if((len(lefty)>0) & (len(leftx)>0)): 
             self.leftx = leftx
             self.lefty = lefty
@@ -213,7 +185,7 @@ class Line():
             self.rightx = rightx
             self.righty = righty
 
-        self.fit_poly()
+        self.fit_poly() #fit the newly added points to a polynomial
         
     
             
