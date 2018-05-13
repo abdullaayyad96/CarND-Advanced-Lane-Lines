@@ -24,6 +24,7 @@ The goals / steps of this project are the following:
 [image5]: ./writeup_figures/per_trans.jpg "Perspective Transform"
 [image6]: ./writeup_figures/line_find_momentum.jpg "Line finding with momentum"
 [image7]: ./writeup_figures/line_find_no_momentum.jpg "Line finding without momentum"
+[image8]: ./output_images/test2.jpg "Output Road image"
 [video1]: ./output_videos/project_video.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
@@ -103,9 +104,19 @@ In addition to determining the position of windows utilizing the above two metho
 ![alt text][image7]
 ![alt text][image6]
 
-Finally, in case previous lane lines were detected, the fitted lines will be used in determining the position of the windows as shown in lines 222-231, 280-286, 
+Furthermore, in case previous lane lines were detected, the fitted lines will be used in determining the position of the windows as shown in lines 222-231, 280-286, 311-322 and 385-391. 
 
-#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+Finally, once pixels of right and left lane lines have been determined, they are passed to a Line object for processing as shown in the below sections.
+
+#### 5. Processing lines
+
+As mentioned earlier, line points are passed to a Line object to be processed. The implementation of the Line class can be seen in `Line.py`. The first step is fitting the newly detected points into two second degree polynomials, one for the left and the other for the right line. 
+
+Upon obtaining fitted polynomials, several tests are undertaken to ensure the validity of these newly obtained polynomials as shown in the `sanity_check` function in lines 110-142 of `Line.py`. First test is calculating the average distance between the left and right lines and comparing it to the nominal distance of 3.7m between lane lines as indicated by the U.S. regulations. This average distance is calculated by integrating the distance between left and right polynomials over a specified range and then dividing the result by the width of this range as shown in the `calc_avg_distance` function in lines 97-108 of `Line.py`. And by comparing this value to the nominal distance, an error value is obtained. The second validaty test is similar to the first one but instead of comparing the distance between newly obtained lines to nominal values, they are compared to the averaged distance of averaged lines obtained from previous lines (if previous lines were detected of course). The final validaty test compared the distance between line at the base of the frame and also compares it to the nominal value of 3.7m. The reason this test is needed in addition to the first one is because there have been observed cases where the lines are very close at one end but two far or the other end, yet the average distance is similar to the nominal case. However, by also checking the distance one end of the image, the probability of such cases occuring is greatly reduced. 
+
+If the newly fitted polynomials are deemed valid, they are averaged with previously obtained polynomials in order to smoothen changes in lane lines and to make the pipeline less susceptible to errors.
+
+#### 6. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
 I did this in lines # through # in my code in `my_other_file.py`
 
