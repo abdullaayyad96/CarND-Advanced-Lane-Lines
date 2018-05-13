@@ -101,10 +101,9 @@ The results obtained from implementing both methods are very similar.
 In addition to determining the position of windows utilizing the above two methods, the concept of shifting momentum is utilized where it is assumed that if windows are shifting in a certain direction, it is more likely that line pixels will continue to progress in the same direction as they are part of the same line. Thus in addition of determining next level window positions using the previously described approaches, previous shifts of window positions can help determine future shifts. This is very advantegous especially with dashed curved lines where there might be segments/windows with no detected line pixels which would severely affect the accuracy of lane detection as the window shifts can be irrelevant to curvuture of the line. This implementation of this concept can be seen in `code.py` in lines 266-286 and 370-390. The below pictures show the advantage of utilizing this concept:
 
 ![alt text][image7]
-
 ![alt text][image6]
 
-Finally, 
+Finally, in case previous lane lines were detected, the fitted lines will be used in determining the position of the windows as shown in lines 222-231, 280-286, 
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
