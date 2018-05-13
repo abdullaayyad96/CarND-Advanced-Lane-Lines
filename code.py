@@ -177,10 +177,10 @@ def threshold(img):
     ls_thresh = np.multiply(s_thresh, l_thresh)
 
     #combining all thresholds
-    color_binary = np.uint8(np.dstack((ls_thresh, sobel_thresh, np.zeros_like(sobel_thresh))))
+    color_img = np.uint8(np.dstack((ls_thresh, sobel_thresh, np.zeros_like(sobel_thresh))))
     combined_thresh = (ls_thresh + sobel_thresh) / 2
 
-    return combined_thresh, color_binary, masked_img
+    return combined_thresh, color_img, masked_img
 
 def find_lines(cut_off_img, Line, mode):
     #This function detects and tracks pixels that are part of a line in an image by using a sliding window approach. Both regular and convolution sliding windows are implemented
@@ -441,7 +441,7 @@ def process_img(input_img):
     input_img = undistort(input_img, mtx, dist)
 
     #perform color and sobel thresholding
-    thresh_image, color_binary, region_masked_img = threshold(input_img)  
+    thresh_image, color_img, region_masked_img = threshold(input_img)  
   
     #apply perspective transform
     per_img = perspective_transform(thresh_image, source_points, destination_points)
