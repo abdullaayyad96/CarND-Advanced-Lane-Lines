@@ -308,19 +308,20 @@ def find_lines(cut_off_img, Line, mode):
         window_centroids = [] #Store the (left,right) window centroid positions per level
         window = np.ones(window_width) #Create our window template that we will use for convolutions
 
-        #First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
-        #and then np.convolve the vertical image slice with the window template 
-    
-        #Sum quarter bottom of image to get slice, while ignoring edges region 
-        #l_sum = np.sum(cut_off_img[int(3*cut_off_img.shape[0]/4):,masking_x_region:int(cut_off_img.shape[1]/2 - masking_x_region)], axis=0)
-        #l_center = np.argmax(np.convolve(window,l_sum))-window_width/2
-        #r_sum = np.sum(cut_off_img[int(3*cut_off_img.shape[0]/4):,int(cut_off_img.shape[1]/2 + masking_x_region):(cut_off_img.shape[1]-masking_x_region)], axis=0)
-        #r_center = np.argmax(np.convolve(window,r_sum))-window_width/2+int(binary_warped.shape[1]/2)
-        l_sum = np.sum(cut_off_img[int(3*cut_off_img.shape[0]/4):,:int(cut_off_img.shape[1]/2)], axis=0)
-        l_center = np.argmax(np.convolve(window,l_sum))-window_width/2
-        r_sum = np.sum(cut_off_img[int(3*cut_off_img.shape[0]/4):,int(cut_off_img.shape[1]/2):], axis=0)
-        r_center = np.argmax(np.convolve(window,r_sum))-window_width/2+int(binary_warped.shape[1]/2)
-    
+        if (Line.detected==False):
+            #First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
+            #and then np.convolve the vertical image slice with the window template 
+            l_sum = np.sum(cut_off_img[int(3*cut_off_img.shape[0]/4):,:int(cut_off_img.shape[1]/2)], axis=0)
+            l_center = np.argmax(np.convolve(window,l_sum))-window_width/2
+            r_sum = np.sum(cut_off_img[int(3*cut_off_img.shape[0]/4):,int(cut_off_img.shape[1]/2):], axis=0)
+            r_center = np.argmax(np.convolve(window,r_sum))-window_width/2+int(binary_warped.shape[1]/2)
+        else:
+            #If previpus lines were detected, starting points are obtained based on the previous fitted polynomials
+            y_eval = binary_warped.shape[0]
+            l_center = int(Line.avg_left_poly[0]*y_eval**2 + Line.avg_left_poly[1]*y_eval + Line.avg_left_poly[2])
+            r_center = int(Line.avg_right_poly[0]*y_eval**2 + Line.avg_right_poly[1]*y_eval + Line.avg_right_poly[2])
+
+
         window_centroids.append((l_center,r_center))
         
         leftx = []
