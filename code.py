@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import cv2
 import os
 import sys
+import pickle
 from Line import Line
 from moviepy.editor import VideoFileClip
 
@@ -17,6 +18,9 @@ video_dir = 'project_videos/project_video.mp4'
 video_dir_out = 'output_videos/project_video.mp4'
 
 #calibration settings
+calbirate = True #boolean than determines whether to perform calibration or load calibration files
+cal_mtx_dir = "cal_mtx.sav"
+cal_dist_dir = "cal_dist_dir"
 calibrate_img_dir = 'camera_cal/' #directory of calibration images
 chess_size = (9, 6) #size of chessboard in calibration images
 mtx = np.ndarray(shape=(3,3)) #setting camera matrix as global variables
@@ -482,7 +486,13 @@ def main():
     global myLine
 
     #perform calibration
-    [mtx, dist] = calibrate(calibrate_img_dir, chess_size)\
+    if calbirate:
+        [mtx, dist] = calibrate(calibrate_img_dir, chess_size)
+        pickle.dump(mtx, open(cal_mtx_dir, 'wb'))
+        pickle.dump(dist, open(cal_dist_dir, 'wb'))
+    else:
+        mtx = pickle.load(open(cal_mtx_dir, 'rb'))
+        dist = pickle.load(open(cal_dist_dir, 'rb'))
             
     #image mode
     if (mode == 'image'):
