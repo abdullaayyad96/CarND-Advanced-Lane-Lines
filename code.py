@@ -37,6 +37,7 @@ slide_mode = 'convolution'
 
 #Create instance of line class
 myLine = Line()
+myLine.set_param([720, 1280], 3/110, 3.7/640)
 
 def calibrate(directory, size):
     #This functions return the camera matrix and distortion coefficients by perfroming calibration on a set of chessboard images
@@ -450,9 +451,7 @@ def process_img(input_img):
   
     #apply perspective transform
     per_img = perspective_transform(thresh_image, source_points, destination_points)
-    
-    #set parameters for myline object
-    myLine.set_param(input_img.shape, 3/110, 3.7/640)
+   
 
     #finding and fitting lane lines
     line_finding_img = find_lines(per_img, myLine, slide_mode)
