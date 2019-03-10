@@ -3,6 +3,7 @@ import matplotlib.image as mpimg
 import cv2
 import sys
 import pickle
+import os
 
 def calibrate(directory, size):
     #This functions return the camera matrix and distortion coefficients by perfroming calibration on a set of chessboard images
@@ -37,8 +38,17 @@ def calibrate(directory, size):
     return cam_mtx, dist_coef
 	
 	
-def main():
+def main(argvs):
 
+	if len(argvs) > 1:
+		calibrate_img_dir = argvs[1]
+		
+		if calibrate_img_dir[-1] != "/":
+			calibrate_img_dir += "/"
+	else:
+		print('Please provide directory of calibration images')
+		sys.exit()		
+	
 	#initialize
 	chess_size = (9, 6) #size of chessboard in calibration images
 	mtx = np.ndarray(shape=(3,3)) #setting camera matrix as global variables
@@ -53,3 +63,6 @@ def main():
 	cal_dist_dir = "cal_dist_dir"
 	pickle.dump(mtx, open(cal_mtx_dir, 'wb'))
 	pickle.dump(dist, open(cal_dist_dir, 'wb'))
+	
+main(sys.argv)
+sys.exit()
