@@ -436,22 +436,32 @@ def process_img(input_img):
 
     return annotate_img
 
-def main():
+def main(argvs):
 
     #global calibration coefficients
 	global mtx
 	global dist
 	global myLine
-
-	#set video or image mode
-	input_type = 'image'
 	
-	#images directory
-	img_dir = 'test_images/'
-	img_out_dir = 'output_images/'
-	#videos directory
-	video_dir = 'project_videos/project_video.mp4'
-	video_dir_out = 'output_videos/project_video.mp4'
+	input_type = ''	
+	input_dir = ''
+	output_dir = ''
+	
+	if (len(argvs) == 4):
+		#set video or image mode
+		input_type = argvs[1]	
+		#input & output directories directory
+		input_dir = argvs[2]
+		output_dir = argvs[3]
+		
+		if input_dir[-1] != "/":
+			input_dir += "/"
+		
+		if output_dir[-1] != "/":
+			output_dir += "/"
+	else:
+		print("3 arguments are required, only %s were provided" % (len(argvs)-1))
+		sys.exit()		
     
 	#load calibration parameters
 	mtx = pickle.load(open(cal_mtx_dir, 'rb'))
@@ -461,7 +471,7 @@ def main():
 	if (input_type == 'image'):
 
 		#read images in directory
-		images = os.listdir(img_dir)
+		images = os.listdir(input_dir)
 		for image in images:
 			if (image[-3:]!="jpg"):
 				images.remove(image)
@@ -475,13 +485,13 @@ def main():
 			myLine.set_param([720, 1280], 3/110, 3.7/640)
 			
 			#read image
-			input_img = mpimg.imread(img_dir + images[i])
+			input_img = mpimg.imread(input_dir + images[i])
 			
 			#obtain marked image
 			final_img = process_img(input_img)
 			
 			#save images
-			mpimg.imsave((img_out_dir+images[i]), final_img)
+			mpimg.imsave((output_dir+images[i]), final_img)
 
 			#showing images
 			plt.subplot(n_images,2,(2*i+1))
@@ -493,17 +503,17 @@ def main():
 
 	#video mode
 	elif (input_type == 'video'):
-		print('no')
+	
 		#Read video
-		input_clip = VideoFileClip(video_dir)
+		input_clip = VideoFileClip(input_dir)
 		#process video frames
 		output_clip = input_clip.fl_image(process_img)
 		#save output video
-		output_clip.write_videofile(video_dir_out, audio=False)
+		output_clip.write_videofile(output_dir, audio=False)
 		
 
 
-main()
+main(sys.argv)
 sys.exit()
 
 
