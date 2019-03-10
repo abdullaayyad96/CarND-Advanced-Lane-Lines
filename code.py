@@ -8,21 +8,11 @@ import pickle
 from Line import Line
 from moviepy.editor import VideoFileClip
 
-#set video or image mode
-mode = 'image'
-#images directory
-img_dir = 'test_images/'
-img_out_dir = 'output_images/'
-#videos directory
-video_dir = 'project_videos/project_video.mp4'
-video_dir_out = 'output_videos/project_video.mp4'
-
-#calibration settings
-calbirate = True #boolean than determines whether to perform calibration or load calibration files
+#calibration files directory 
 cal_mtx_dir = "cal_mtx.sav"
 cal_dist_dir = "cal_dist_dir"
-calibrate_img_dir = 'camera_cal/' #directory of calibration images
-chess_size = (9, 6) #size of chessboard in calibration images
+
+#define calibration parameters as global variables
 mtx = np.ndarray(shape=(3,3)) #setting camera matrix as global variables
 dist = np.ndarray(shape=(1,5))  #setting distortion coefficients as global variables
 
@@ -38,38 +28,6 @@ slide_mode = 'convolution'
 #Create instance of line class
 myLine = Line()
 myLine.set_param([720, 1280], 3/110, 3.7/640)
-
-def calibrate(directory, size):
-    #This functions return the camera matrix and distortion coefficients by perfroming calibration on a set of chessboard images
-    #obtaining files in directory
-    cal_files = os.listdir(directory)
-
-    #defining image and object points
-    img_points = []
-    obj_points = []
-    objp = np.zeros((size[0]*size[1],3), np.float32)
-    objp[:,:2] = np.mgrid[0:size[0], 0:size[1]].T.reshape(-1,2)
-
-    #iterating over images in directory 
-    for file in cal_files:
-        
-        #reading image
-        if(file[-3:]=="jpg"):
-            cal_img = mpimg.imread(directory + file)
-
-            #converting to grayscale
-            gray = cv2.cvtColor(cal_img, cv2.COLOR_RGB2GRAY)
-
-            #obtaining corners in chessboard
-            ret, corners = cv2.findChessboardCorners(gray, size)
-            if (ret):
-                img_points.append(corners)
-                obj_points.append(objp)
-
-    #performing calibration
-    ret, cam_mtx, dist_coef, rvecs, tvecs = cv2.calibrateCamera(obj_points, img_points, gray.shape[::-1], None, None)
-
-    return cam_mtx, dist_coef
 
 
 def undistort(img, camera_mtx, dist_coef):
@@ -479,64 +437,72 @@ def process_img(input_img):
     return annotate_img
 
 def main():
+
     #global calibration coefficients
-    global mtx
-    global dist
-    global myLine
+	global mtx
+	global dist
+	global myLine
 
-    #perform calibration
-    if calbirate:
-        [mtx, dist] = calibrate(calibrate_img_dir, chess_size)
-        pickle.dump(mtx, open(cal_mtx_dir, 'wb'))
-        pickle.dump(dist, open(cal_dist_dir, 'wb'))
-    else:
-        mtx = pickle.load(open(cal_mtx_dir, 'rb'))
-        dist = pickle.load(open(cal_dist_dir, 'rb'))
-            
-    #image mode
-    if (mode == 'image'):
+	#set video or image mode
+	input_type = 'image'
+	
+	#images directory
+	img_dir = 'test_images/'
+	img_out_dir = 'output_images/'
+	#videos directory
+	video_dir = 'project_videos/project_video.mp4'
+	video_dir_out = 'output_videos/project_video.mp4'
+    
+	#load calibration parameters
+	mtx = pickle.load(open(cal_mtx_dir, 'rb'))
+	dist = pickle.load(open(cal_dist_dir, 'rb'))
+			
+	#image mode
+	if (input_type == 'image'):
 
-        #read images in directory
-        images = os.listdir(img_dir)
-        for image in images:
-            if (image[-3:]!="jpg"):
-                images.remove(image)
-        n_images = len(images)
+		#read images in directory
+		images = os.listdir(img_dir)
+		for image in images:
+			if (image[-3:]!="jpg"):
+				images.remove(image)
+		n_images = len(images)
 
-        #iterating images in directory
-        for i in range(n_images):
-            
-            #clear Line object for each image
-            myLine = Line()
-            myLine.set_param([720, 1280], 3/110, 3.7/640)
+		#iterating images in directory
+		for i in range(n_images):
+		
+			#clear Line object for each image
+			myLine = Line();
+			myLine.set_param([720, 1280], 3/110, 3.7/640)
+			
+			#read image
+			input_img = mpimg.imread(img_dir + images[i])
+			
+			#obtain marked image
+			final_img = process_img(input_img)
+			
+			#save images
+			mpimg.imsave((img_out_dir+images[i]), final_img)
 
-            #read image
-            input_img = mpimg.imread(img_dir + images[i])
+			#showing images
+			plt.subplot(n_images,2,(2*i+1))
+			plt.imshow(input_img)
+			plt.subplot(n_images,2,(2*i+2))
+			plt.imshow(final_img)
 
-            #obtain marked image
-            final_img = process_img(input_img)
-            
-            #save images
-            mpimg.imsave((img_out_dir+images[i]), final_img)
+		plt.show()
 
-            #showing images
-            plt.subplot(n_images,2,(2*i+1))
-            plt.imshow(input_img)
-            plt.subplot(n_images,2,(2*i+2))
-            plt.imshow(final_img)
+	#video mode
+	elif (input_type == 'video'):
+		print('no')
+		#Read video
+		input_clip = VideoFileClip(video_dir)
+		#process video frames
+		output_clip = input_clip.fl_image(process_img)
+		#save output video
+		output_clip.write_videofile(video_dir_out, audio=False)
+		
 
-        plt.show()
 
-    #video mode
-    elif (mode == 'video'):
-        #Read video
-        input_clip = VideoFileClip(video_dir)
-        #process video frames
-        output_clip = input_clip.fl_image(process_img)
-        #save output video
-        output_clip.write_videofile(video_dir_out, audio=False)
-
- 
 main()
 sys.exit()
 
