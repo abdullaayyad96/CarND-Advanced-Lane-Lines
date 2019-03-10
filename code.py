@@ -9,7 +9,7 @@ from Line import Line
 from moviepy.editor import VideoFileClip
 
 #set video or image mode
-mode = 'video'
+mode = 'image'
 #images directory
 img_dir = 'test_images/'
 img_out_dir = 'output_images/'
@@ -507,7 +507,9 @@ def main():
         for i in range(n_images):
             
             #clear Line object for each image
-            myLine = Line();
+            myLine = Line()
+            myLine.set_param([720, 1280], 3/110, 3.7/640)
+
             #read image
             input_img = mpimg.imread(img_dir + images[i])
 
