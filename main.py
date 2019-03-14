@@ -214,15 +214,18 @@ def find_lines(cut_off_img, Line, mode):
             win_xleft_high = leftx_current + margin
             win_xright_low = rightx_current - margin
             win_xright_high = rightx_current + margin 
+			
             #Draw the windows on the visualization image
             cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high), (0,255,0), 2) 
             cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high), (0,255,0), 2) 
-            #Identify the nonzero pixels in x and y within the window
+            
+			#Identify the nonzero pixels in x and y within the window
             good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
             (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
             good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
             (nonzerox >= win_xright_low) &  (nonzerox < win_xright_high)).nonzero()[0]
-            #Appending these indices to the lists
+            
+			#Appending these indices to the lists
             left_lane_inds.append(good_left_inds)
             right_lane_inds.append(good_right_inds)
 
@@ -239,7 +242,8 @@ def find_lines(cut_off_img, Line, mode):
                     right_momentum = right_change
                 else:
                     right_momentum = right_momentum + 0.5*right_change
-            #updating windows center values
+           
+		   #updating windows center values
             if(myLine.detected==False):
                 #in case no previous line was detected, update window position by adding newly calculated momentum values
                 leftx_current = leftx_current + int(left_momentum)        
@@ -308,25 +312,30 @@ def find_lines(cut_off_img, Line, mode):
             win_y_low = int(cut_off_img.shape[0]-(level+1)*window_height)
             image_layer = np.sum(cut_off_img[win_y_low:win_y_high,:], axis=0)
             conv_signal = np.convolve(window, image_layer)
-            # Find the best left centroid by using past left center as a reference
+            
+			# Find the best left centroid by using past left center as a reference
             # Use window_width/2 as offset because convolution signal reference is at right side of window, not center of window
             offset = window_width/2
             l_min_index = int(max(l_center+offset-margin,0))
             l_max_index = int(min(l_center+offset+margin,cut_off_img.shape[1]))
             #l_center = np.argmax(conv_signal[l_min_index:l_max_index])+l_min_index-offset
-            # Find the best right centroid by using past right center as a reference
+            
+			# Find the best right centroid by using past right center as a reference
             r_min_index = int(max(r_center+offset-margin,0))
             r_max_index = int(min(r_center+offset+margin,binary_warped.shape[1]))
             #r_center = np.argmax(conv_signal[r_min_index:r_max_index])+r_min_index-offset
-            #plotting windows
+            
+			#plotting windows
             cv2.rectangle(out_img,(l_min_index,win_y_low),(l_max_index,win_y_high), (0,255,0), 2) 
             cv2.rectangle(out_img,(r_min_index,win_y_low),(r_max_index,win_y_high), (0,255,0), 2) 
-            # Identify the nonzero pixels in x and y within the window
+            
+			#Identify the nonzero pixels in x and y within the window
             good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
             (nonzerox >= l_min_index) &  (nonzerox < l_max_index)).nonzero()[0]
             good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
             (nonzerox >= r_min_index) &  (nonzerox < r_max_index)).nonzero()[0]
-            # Append these indices to the lists
+            
+			#Append these indices to the lists
             left_lane_inds.append(good_left_inds)
             right_lane_inds.append(good_right_inds)
 
