@@ -454,10 +454,10 @@ def main(argvs):
 		input_dir = argvs[2]
 		output_dir = argvs[3]
 		
-		if input_dir[-1] != "/":
+		if (input_dir[-1] != "/") and (input_dir[-3:] != "mp4"):
 			input_dir += "/"
 		
-		if output_dir[-1] != "/":
+		if output_dir[-1] != "/" and (output_dir[-3:] != "mp4"):
 			output_dir += "/"
 	else:
 		print("3 arguments are required, only %s were provided" % (len(argvs)-1))
