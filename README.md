@@ -5,7 +5,7 @@
 
 In this project, a software pipeline was developed to identify the lane boundaries in images or videos. A classical computer vision approach relying on Channel transforms and gradients was adopted to tackle this problem.
 
-![sample output](output_images/test4.jpg)
+![sample_output](output_images/test4.jpg)
 
 The goals / steps of this project are the following:
 

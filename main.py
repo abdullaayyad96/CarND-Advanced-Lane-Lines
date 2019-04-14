@@ -32,6 +32,7 @@ myLine.set_param([720, 1280], 3/110, 3.7/640)
 
 def undistort(img, camera_mtx, dist_coef):
     #return undistorted images based on camera matrix and distortion coefficients
+	
     return cv2.undistort(img, camera_mtx, dist_coef)
 
 def perspective_transform(img, src, dst):
@@ -148,7 +149,6 @@ def threshold(img):
 def find_lines(cut_off_img, Line, mode):
     #This function detects and tracks pixels that are part of a line in an image by using a sliding window approach. Both regular and convolution sliding windows are implemented
     #The detected pixels are then passed to a Line object which processes these pixels and an annotated image with detected pixels is returned 
-
     
     #obtaining a binary version of the thresholded image
     binary_warped = np.zeros_like(cut_off_img)
@@ -173,14 +173,14 @@ def find_lines(cut_off_img, Line, mode):
     # Set minimum number of pixels found to recenter window
     minpix = 50
 
-
     #Identify the x and y positions of all nonzero pixels in the image
     nonzero = binary_warped.nonzero()
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1])
     
     if (mode == 'regular'):
-        #Fidning the starting point for the left and right lines
+	
+        #Fidning the starting point for the left and right lines		
         midpoint = np.int(histogram.shape[0]//2)
         if (Line.detected==False):
             #If no previous line is detected, the starting points of left and right lines are the peaks of the histogram previously calculated that fall withing 
@@ -207,6 +207,7 @@ def find_lines(cut_off_img, Line, mode):
 
         #Step through the windows one by one
         for window in range(nwindows):
+		
             #Identify window boundaries in x and y (and right and left)
             win_y_low = binary_warped.shape[0] - (window+1)*window_height
             win_y_high = binary_warped.shape[0] - window*window_height
@@ -272,6 +273,7 @@ def find_lines(cut_off_img, Line, mode):
         Line.add_points(lefty, leftx, righty, rightx)
 
     elif (mode == 'convolution'):
+	
         window_centroids = [] #Store the (left,right) window centroid positions per level
         window = np.ones(window_width) #Create our window template that we will use for convolutions
 
@@ -304,9 +306,9 @@ def find_lines(cut_off_img, Line, mode):
         right_momentum = 0
         left_momentum = 0
 
-
         # Go through each layer looking for max pixel locations
         for level in range(1,(int)(binary_warped.shape[0]/window_height)):
+		
             # convolve the window into the vertical slice of the image
             win_y_high = int(cut_off_img.shape[0]-level*window_height)
             win_y_low = int(cut_off_img.shape[0]-(level+1)*window_height)
@@ -340,13 +342,13 @@ def find_lines(cut_off_img, Line, mode):
             right_lane_inds.append(good_right_inds)
 
             #If found > minpix pixels, update momentum values
-            if len(good_left_inds) > minpix:
+            if len(good_left_inds) > minpix:			
                 left_change = np.argmax(conv_signal[l_min_index:l_max_index])+l_min_index-offset - l_center
                 if(left_momentum==0):
                     left_momentum = left_change
                 else:
                     left_momentum = left_momentum + 0.5*left_change
-            if len(good_right_inds) > minpix:        
+            if len(good_right_inds) > minpix:    			
                 right_change = np.argmax(conv_signal[r_min_index:r_max_index])+r_min_index-offset - r_center
                 if(right_momentum==0):
                     right_momentum = right_change
@@ -407,6 +409,7 @@ def plot(binary_warped, Line):
 
 
 def process_img(input_img):
+
     #obtaining global Line object
     global myLine 
 
@@ -437,7 +440,7 @@ def process_img(input_img):
 
         #annotating image 
         annotate_img = cv2.putText(added_img,"Curveture radius: {0:.2f} km".format(myLine.radius_of_curvature/1000), (100,100), cv2.FONT_HERSHEY_COMPLEX, 1, 255, 2)
-        annotate_img = cv2.putText(annotate_img,"Displacement from lane center: {0:.2f} cm".format(myLine.center_displacement), (100,150), cv2.FONT_HERSHEY_COMPLEX, 1, 255, 2)
+        annotate_img = cv2.putText(annotate_img,"Displacement from lane center: {0:.2f} m".format(myLine.center_displacement), (100,150), cv2.FONT_HERSHEY_COMPLEX, 1, 255, 2)
 
     else:
         #if no line were detected return an image marked with the desired text
